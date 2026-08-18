@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; color: #333; padding: 20px; }
+      .card { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
+      .status-ok { color: #27ae60; font-weight: bold; }
+      .status-err { color: #c0392b; font-weight: bold; }
+      .header { border-bottom: 2px solid #134f5c; padding-bottom: 10px; margin-bottom: 20px; }
+      .btn { background: #134f5c; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; }
+      .kpi { display: flex; justify-content: space-between; margin: 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h2>🩺 Diagnóstico do Robô</h2>
+    </div>
+
+    <div class="card">
+  <h2>🩺 Diagnóstico do Robô</h2>
+  <p>Conexão Yahoo Finance: <span id="yahooFinanceStatus">🟢 ATIVA</span></p>
+  <p>Contexto IBOV: <span id="ibovContext">BULLISH</span></p>
+  <p>Média 200 (Primária): <span id="media200">148.362</span> pts</p>
+  <p>Cache de Memória: <span id="cacheItems">78</span> Itens</p>
+
+  <h3>Configuração de Automação:</h3>
+  <p>Scanner Diário (18h): <span id="scannerStatus">AGENDADO</span></p>
+  <p>Relatório E-mail: <span id="emailReportStatus">DESATIVADO</span></p>
+
+  <button id="closeSystemStatusPanel" class="btn btn-primary">FECHAR PAINEL</button>
+</div>
+
+    <div class="card">
+      <p><strong>Configuração de Automação:</strong></p>
+      <div class="kpi"><span>Scanner Diário (18h):</span> <span class="status-ok">AGENDADO</span></div>
+      <div class="kpi"><span>Relatório E-mail:</span> <span class="status-err">DESATIVADO</span></div>
+    </div>
+
+    <button class="btn" onclick="google.script.host.close()">FECHAR PAINEL</button>
+
+    <script>
+      // Aqui poderíamos adicionar chamadas google.script.run para atualizar dados em tempo real
+    </script>
+  </body>
+</html>

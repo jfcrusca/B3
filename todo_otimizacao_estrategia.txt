@@ -1,0 +1,5 @@
+- [ ] Analisar o impacto do cenário macro (Selic alta, Dólar alto, regime BEARISH) na estratégia de trading
+- [ ] Revisar os filtros de entrada (Swing Trade) no 00_Core_Orchestrator.js e STRATEGY_EVALUATE_CORE
+- [ ] Implementar um filtro de "Proteção de Capital" que inibe compras em regimes BEARISH extremos
+- [ ] Avaliar a viabilidade de adicionar estratégias de Short ou Hedge nos filtros de oportunidade
+- [ ] Validar mudanças com o time/contexto de mercado atual

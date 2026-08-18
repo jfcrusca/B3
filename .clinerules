@@ -1,0 +1,40 @@
+# Contexto do Projeto: B3-v10
+Sistema avançado de análise financeira e orquestração de Agentes IA integrado à B3. O backend roda em Google Apps Script (GAS - Engine V8) e o frontend via HTML Service.
+
+## 1. Idioma e Documentação
+- Responda sempre em português brasileiro (pt-BR).
+- Comentários em português para lógica de negócio e mercado financeiro.
+- Comentários em inglês para código técnico (APIs, regex, configurações).
+- Use JSDoc (`/** ... */`) para documentar os métodos públicos de cada módulo.
+
+## 2. Regras de Código e Ambiente Google Apps Script (V8)
+- **Engine V8:** Utilize JavaScript moderno (ES6+). Prefira `const` e `let` sobre `var`. Classes ES6 SÃO suportadas e devem ser usadas para estruturar os Agentes de IA (`35_*`).
+- **Sem Módulos Node:** NÃO use `import`, `export` ou `require`. O Apps Script compartilha um escopo global. Use Padrão Módulo (IIFE) apenas quando precisar isolar escopo rígido, mas Classes são preferíveis para entidades.
+- **Segurança (Credenciais):** NUNCA insira chaves de API em texto plano no código. Utilize EXCLUSIVAMENTE `PropertiesService.getScriptProperties().getProperty('CHAVE')`.
+- **Logs:** Use `console.log()` ou `console.error()` para depuração (visíveis no Google Cloud Executions).
+
+## 3. Pipeline de Dados (Ordem de Prioridade)
+A arquitetura de falhas (Circuit Breaker) deve seguir estritamente a ordem abaixo. 3 falhas consecutivas ativam o fallback direto.
+1. **BRAPI:** Fonte principal de histórico e cotações (Plano gratuito: 1 ativo/requisição).
+2. **Alpha Vantage:** Fallback de histórico (5 req/min, usar `.SA` para B3).
+3. **Finnhub:** Fallback de histórico (60 req/min, usar `.SA` para B3).
+4. **HG Brasil:** Fallback final (candles sintéticos com variação realista).
+5. **Yahoo Finance:** Desativado (bloqueio 401/403 - NÃO REATIVAR).
+
+## 4. Dados Macroeconômicos e Performance
+- **BCB SGS (api.bcb.gov.br):** Fonte oficial para Selic (série 432), Dólar (série 1) e IPCA (série 243). Sem necessidade de chave.
+- **Cache:** Obrigatório cache de 1 hora para dados macro usando `CacheService.getScriptCache()`.
+- **Rate Limits:** Pausa entre lotes de tickers: mínimo 1000ms.
+- **Timeouts e Retries:** Retry com backoff exponencial para HTTP 429, 502, 504 (máx 3 tentativas). Timeout da lógica: 300s (preservando 60s para salvamento antes da morte do GAS).
+- **Otimização Planilhas:** Leituras/gravações no Google Sheets devem ocorrer em lote (arrays bidimensionais com `getValues()` e `setValues()`). Nunca dentro de loops.
+
+## 5. Estrutura de Arquivos e Clasp
+- `00_*` — Core (Orquestrador, Config, Logger, Cache, RateLimiter)
+- `05_*` — Data Service (Camada unificada)
+- `10_*` / `11_*` — Data Fetchers (Brapi, Alpha Vantage, etc.)
+- `12_*` — Indicadores Técnicos
+- `20_*` — Compliance e Impostos
+- `30_*` / `34_*` / `35_*` — Portfólio, AI (Prompts/Decision Engine) e Agentes
+- `40_*` / `50_*` / `56_*` — Ranker, Análises e MacroFetcher
+- `Index.html` e `WebApp.js` — Frontend (Usar APENAS `google.script.run` para comunicação com backend).
+- **Clasp:** Configurações Node locais (`package.json`, `.env`) devem estar no `.claspignore`. Apenas `.gs` e `.html` sobem para o Google.

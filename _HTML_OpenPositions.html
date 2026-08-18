@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= HtmlService.createHtmlOutputFromFile('_CSS_GlobalStyles').getContent() ?>
+</head>
+<body>
+  <div class="card">
+  <h3>📋 Posições Abertas (<span id="openPositionsCount">= openPositions.length ?</span>)</h3>
+  <hr>
+
+  <div class="scrollable-content"> <!-- Adicionado para tabelas grandes -->
+    <table>
+      <thead>
+        <tr>
+          <th>Ativo</th>
+          <th>Qtd</th>
+          <th>Preço Médio</th>
+          <th>Cotação Atual</th>
+          <th>Lucro/Prejuízo (%)</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        for (let i = 0; i < openPositions.length; i++) { ?
+          const pos = openPositions[i]; ?
+          <tr>
+            <td>= pos.ticker ?</td>
+            <td>= pos.quantity ?</td>
+            <td>R$ <span class="text-bold">= pos.averagePrice.toFixed(2) ?</span></td>
+            <td>R$ <span class="text-bold">= pos.currentQuote.toFixed(2) ?</span></td>
+            <td class="= pos.profitLossClass ?"> <!-- Aplica a classe CSS dinâmica -->
+              <span class="text-bold">
+                = pos.profitLossPct = 0 ? '+' : '' ?>= pos.profitLossPct.toFixed(2) ?%
+              </span>
+            </td>
+            <td>= pos.statusIcon ?</td>
+          </tr>
+        } ?
+      </tbody>
+    </table>
+  </div>
+
+  <div class="legend">
+    <p><b>Legenda:</b></p>
+    <span>✅ Normal</span>
+    <span>⚠️ Atenção</span>
+    <span>🔴 Crítico</span>
+    <span>🛑 Stop Iminente</span>
+    <span>🎯 Alvo Próximo</span>
+    <span>💡 Oportunidade</span>
+    <span>🚨 Stop Atingido</span>
+  </div>
+</div>
+</body>
+</html>

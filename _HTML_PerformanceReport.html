@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= HtmlService.createHtmlOutputFromFile('_CSS_GlobalStyles').getContent() ?>
+</head>
+<body>
+  <div class="card">
+  <h2>📊 Relatório de Performance</h2>
+  <hr>
+
+  <div class="performance-item">
+    <h3>Posições Abertas</h3>
+    <p><span id="openPositionsCount" class="text-bold">= openPositionsCount ?</span></p>
+  </div>
+
+  <div class="performance-item">
+    <h3>Total Investido</h3>
+    <p>R$ <span id="totalInvested" class="text-bold">= totalInvested.toFixed(2) ?</span></p>
+  </div>
+
+  <div class="performance-item">
+    <h3>Valor Atual</h3>
+    <p>R$ <span id="currentValue" class="text-bold">= currentValue.toFixed(2) ?</span></p>
+  </div>
+
+  <div class="performance-item">
+    <h3>Lucro/Prejuízo</h3>
+    <p>
+      <span id="profitLoss" class="text-bold
+        = profitLoss > 0 ? 'status-success' : (profitLoss < 0 ? 'status-danger' : '') ?">
+        = profitLoss = 0 ? '+' : '' ?>= profitLoss.toFixed(2) ?
+      </span>
+      (<span id="profitLossPct" class="text-bold
+        = profitLossPct > 0 ? 'status-success' : (profitLossPct < 0 ? 'status-danger' : '') ?">
+        = profitLossPct = 0 ? '+' : '' ?>= profitLossPct.toFixed(2) ?%
+      </span>)
+    </p>
+  </div>
+
+  <p class="text-small text-right">Gerado em <span id="generatedAt">= generatedAt ?</span></p>
+</div>

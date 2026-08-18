@@ -1,0 +1,10 @@
+=== FUNÇÕES COM NOMES DUPLICADOS ===
+- isDebugModeEnabled
+- setupLogPerformance
+- _fetchWithRetry
+- getHistory
+- getQuote
+- getQuoteBatch
+- _cfg
+- _normalizeSentiment
+- DIAGNOSTICO_BRAPI_YAHOO

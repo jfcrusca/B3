@@ -1,0 +1,5 @@
+- [x] Analisar o fluxo de dados de notícias no projeto (onde são obtidas e processadas atualmente)
+- [x] Criar um prompt de sistema para análise de sentimento (Bullish/Bearish) utilizando o 07_AI_Unified_Connector.js
+- [x] Criar um novo módulo ou função para processar o texto das notícias
+- [x] Integrar a pontuação de sentimento ao engine de decisão (34_DecisionEngine.js ou similar)
+- [ ] Testar a nova funcionalidade de NLP

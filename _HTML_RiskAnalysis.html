@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= HtmlService.createHtmlOutputFromFile('_CSS_GlobalStyles').getContent() ?>
+</head>
+<body>
+  <div class="card">
+  <h2>💰 Análise de Risco da Carteira</h2>
+  <hr>
+  <h3>Nível de Risco: <span id="riskLevel" class="text-bold">= riskLevel ?</span></h3>
+  <p id="riskRecommendation">= recommendation ?</p>
+
+  <h4>Risco Total Estimado</h4>
+  <p>R$ <span id="totalRiskValue">= totalRiskValue.toFixed(2) ?</span></p>
+
+  <h4>% do Capital Total</h4>
+  <p><span id="riskPercentage">= riskPercentage.toFixed(2) ?</span>%</p>
+
+  <h4>📌 Ativo Mais Arriscado</h4>
+  <p><span id="riskiestAsset">= riskiestAsset || 'Nenhum' ?</span>: R$ <span id="maxRiskPerAsset">= maxRiskPerAsset.toFixed(2) ?</span></p>
+
+  <p class="text-bold">Capital Total Considerado: R$ <span id="totalCapital">= totalCapital.toFixed(2) ?</span></p>
+
+  <div class="legend">
+    <p><b>Legenda:</b></p>
+    <span>🟢 &lt; 5%</span> |
+    <span>🟡 5-10%</span> |
+    <span>🔴 &gt; 10%</span>
+  </div>
+</div>

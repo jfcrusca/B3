@@ -1,0 +1,6 @@
+=== MÓDULOS CRÍTICOS ===
+
+⚠️ 00_Core_Orchestrator.js | Linhas: 370 | Complexidade: 72
+⚠️ 08_AI_Ensemble.js | Linhas: 673 | Complexidade: 126
+⚠️ 08_Output_Unified.js | Linhas: 221 | Complexidade: 54
+⚠️ 22_Core_Analyzers.js | Linhas: 753 | Complexidade: 204

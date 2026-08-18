@@ -1,0 +1,5 @@
+- [ ] Analisar o conceito da Lei de Benford e sua aplicabilidade em dados financeiros
+- [ ] Identificar módulos do projeto (como 21_Tax_Calculator.js, 30_DARF_Generator.js, 31_Portfolio_Validator.js) onde a detecção de anomalias seria útil
+- [ ] Criar um módulo de verificação baseado na Lei de Benford
+- [ ] Integrar a verificação aos fluxos de dados do sistema
+- [ ] Validar a implementação com dados históricos

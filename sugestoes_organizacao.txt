@@ -1,0 +1,89 @@
+=== SUGESTÃO DE ESTRUTURA ===
+
+📁 /CORE_ORCHESTRATION
+  - 00_Core_Orchestrator.js
+  - 00_Debug_Ensemble_Tests.js
+  - 00_Logger_Compat.js
+  - 00_Menu_Manager.js
+  - 00_Pipeline_Adapter.js
+  - 00_Security_Utils.js
+  - 00_Setup_CreateSheets.js
+  - 00_Tools.js
+  - 00_Utils.js
+  - 01_Core_Config.js
+  - 02_Core_Logger.js
+  - 04_Core_RateLimiter.js
+  - 22_Core_Analyzers.js
+  - 35_Agent_Orchestrator.js
+
+📁 /UTILS
+  - 03_Cache_Unified.js
+  - 08_Output_Unified.js
+  - 20_Compliance_Unified.js
+  - 21_Tax_Calculator.js
+  - 23_Pivot_Fibonacci.js
+  - 25_Fundamentalist_Engine.js
+  - 27_Abas_Cabecalhos.js
+  - 28_ativarEnforcement.js
+  - 29_Oportunidades_Processor.js
+  - 39_Code_Scanner.js
+  - 42_HistoricalContext.js
+  - 46_Debug_System.js
+  - 47_Automacao_Triggers.js
+  - 48_Health_Check.js
+  - 50_preMarketAnalysis.js
+  - 53_CandlePatternScanner.js
+  - 54_Dashboard_Anual.js
+  - 57_Copilot_Webhook.js
+  - 99_Debug_Unified.js
+  - TESTE_RapidAPI.js
+  - VerificarFunciona.js
+  - WebApp.js
+
+📁 /DATA_MANAGEMENT
+  - 05_B3V10_TickerManager.js
+  - 05_Data_Service.js
+  - 10_Data_YahooFetcher.js
+  - 11_Data_AlphaVantageFetcher.js
+  - 17_Notification_Manager.js
+  - 24_Secrets_Manager.js
+  - 26_Data_BrapiFetcher.js
+  - 33_Data_SheetManager.js
+  - 37_Agent_RiskManager.js
+  - 52_Performance_Manager.js
+  - 59_Simulation_Manager.js
+
+📁 /AI_ANALYSIS
+  - 07_AI_Unified_Connector.js
+  - 08_AI_Ensemble.js
+  - 14_Dashboard_PainelMercado.js
+  - 15_AI_Agentic_Enricher.js
+  - 34_AI_Logic.js
+  - 34_AI_Prompts.js
+  - 34_AI_Service.js
+  - 34_DecisionEngine.js
+  - 36_Agent_Analyst.js
+  - 38_Agent_Memory.js
+  - 55_AI_Ensemble.js
+  - 58_AI_Monitor.js
+
+📁 /TECHNICAL_INDICATORS
+  - 12_Indicators_Volume.js
+  - 13_Indicators_RelativeStrength.js
+
+📁 /TRADING_LOGIC
+  - 30_DARF_Generator.js
+  - 30_Portfolio_Unified.js
+  - 31_Portfolio_Rebalancer.js
+  - 41_Ranker.js
+
+📁 /CONFIG_SETUP
+  - 32_Automacao_Setup.js
+
+📁 /SECURITY
+  - 51_SecureKeyService.js
+  - 51_Sentinela_Gringo.js
+
+📁 /API_FETCHERS
+  - 56_MacroFetcher.js
+

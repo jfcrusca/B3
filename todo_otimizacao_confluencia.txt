@@ -1,0 +1,4 @@
+- [x] Analisar como Fibonacci e Volume Relativo são calculados e usados atualmente
+- [x] Definir lógica de "Score de Confluência" para integrar Fibo e Volume
+- [x] Implementar ajustes no `34_DecisionEngine.js` para considerar confluência
+- [x] Validar a nova lógica de confluência

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body { font-family: sans-serif; line-height: 1.6; padding: 20px; background: #fff; }
+      h3 { color: #134f5c; border-left: 4px solid #134f5c; padding-left: 10px; }
+      .step { margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 5px; }
+      .badge { background: #fff2cc; padding: 2px 5px; border-radius: 3px; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+  <h3>📖 Manual do Operador Sniper</h3>
+  <hr>
+
+  <div class="guide-section">
+    <h4>1. O Score (0-100):</h4>
+    <p>Priorize ativos com Score > 80. Eles possuem confluência de Médias, Fibonacci e Volume.</p>
+  </div>
+
+  <div class="guide-section">
+    <h4>2. Ponto de Entrada:</h4>
+    <p>O robô sugere a compra no nível Fibo 61.8%. Se o preço já estiver lá, o status será "Market". Se estiver acima, use uma ordem "Limit".</p>
+  </div>
+
+  <div class="guide-section">
+    <h4>3. Gestão de Risco:</h4>
+    <p>O Stop Loss é calculado abaixo do nível 78.6% de Fibonacci ou 1x ATR. Nunca mova o stop para baixo após entrar na operação.</p>
+  </div>
+
+  <div class="guide-section">
+    <h4>4. Dashboard:</h4>
+    <p>Sempre atualize o Dashboard após rodar o Scanner para ver a distribuição de setups do dia.</p>
+  </div>
+
+  <button id="understoodGuideButton" class="btn btn-primary">ENTENDI</button>
+</div>
+
+    <button style="width:100%; padding:10px; background:#444; color:white; border:none;" onclick="google.script.host.close()">ENTENDI</button>
+  </body>
+</html>

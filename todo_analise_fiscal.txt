@@ -1,0 +1,5 @@
+- [x] Analisar o fluxo atual de dados contábeis ('Notas de Corretagem' -> TaxCalculator -> DARF/Anual)
+- [x] Verificar a integridade dos dados de Lucro/Prejuízo, IR Fonte e Vendas para IRPF
+- [x] Documentar o que falta para conformidade total com IRPF (ex: carteira de custódia, preço médio)
+- [x] Sugerir melhorias no `21_Tax_Calculator.js` e `30_DARF_Generator.js` para relatório anual
+- [x] Criar um script ou função de verificação para o usuário validar a consistência dos dados fiscais

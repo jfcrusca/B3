@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B3-v10 Análise Profissional</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card h3 {
+            color: #666;
+            font-size: 1em;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-card .unit {
+            color: #999;
+            font-size: 0.9em;
+        }
+        
+        .insights-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .insights-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .insights-list {
+            list-style: none;
+        }
+        
+        .insights-list li {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            border-radius: 5px;
+            color: #555;
+        }
+        
+        .recommendations-list li {
+            border-left-color: #48c78e;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            overflow-x: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            color: #555;
+        }
+        
+        tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .badge-excelente { background: #48c78e; color: white; }
+        .badge-bom { background: #3e8ed0; color: white; }
+        .badge-regular { background: #ffe08a; color: #333; }
+        .badge-ruim { background: #f14668; color: white; }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: white;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.8em; }
+            .stat-card .number { font-size: 2em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 B3-v10 Análise Profissional de Código</h1>
+            <p>Relatório gerado automaticamente em 08/06/2026 13:29</p>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>📦 Total de Módulos</h3>
+                <div class="number">70</div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>📝 Linhas de Código</h3>
+                <div class="number">9,870</div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>🔧 Funções</h3>
+                <div class="number">280</div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>🎯 Categorias</h3>
+                <div class="number">9</div>
+            </div>
+        </div>
+        
+        <div class="insights-section">
+            <h2>💡 Insights da Análise</h2>
+            <ul class="insights-list">
+                <li>⚠️ 3 módulos com mais de 300 linhas</li>
+                <li>🔍 21 módulos com alta complexidade ciclomática</li>
+                <li>📊 Distribuição: {'core_orchestration': 13, 'ai_analysis': 16, 'trading_logic': 6, 'data_management': 22, 'api_fetchers': 4, 'technical_indicators': 3, 'security': 4, 'config_setup': 1, 'utils': 1}</li>
+                <li>🤖 Perfis tecnológicos: {'IA-Focused + Google-Apps-Script': 9, 'IA-Focused': 1, 'Google-Apps-Script': 30, 'Genérico': 13, 'IA-Focused + Technical-Analysis + Google-Apps-Script': 2, 'Technical-Analysis + Google-Apps-Script': 2, 'Financial-Data + Google-Apps-Script': 5, 'Bot-Enabled + Google-Apps-Script': 1, 'Standard': 2, 'IA-Focused + Technical-Analysis': 2, 'Technical-Analysis': 2, 'IA-Focused + Bot-Enabled + Google-Apps-Script': 1}</li>
+                <li>📝 21 módulos sem documentação</li>
+
+            </ul>
+        </div>
+        
+        <div class="insights-section">
+            <h2>⚡ Recomendações</h2>
+            <ul class="insights-list recommendations-list">
+                <li>Considere dividir módulos grandes em componentes menores</li>
+                <li>Refatore módulos complexos para melhorar manutenibilidade</li>
+                <li>Adicione documentação JSDoc aos módulos não documentados</li>
+
+            </ul>
+        </div>
+        
+        <div class="table-container">
+            <h2 style="margin-bottom: 20px;">📋 Detalhamento dos Módulos</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Módulo</th>
+                        <th>Categoria</th>
+                        <th>Linhas</th>
+                        <th>Funções</th>
+                        <th>Complexidade</th>
+                        <th>Qualidade</th>
+                        <th>Perfil</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    <tr>
+                        <td>00_Core_Orchestrator.js</td>
+                        <td>core_orchestration</td>
+                        <td>318</td>
+                        <td>2</td>
+                        <td>81</td>
+                        <td><span class="badge badge-ruim">Ruim</span></td>
+                        <td>IA-Focused + Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>00_Debug_Ensemble_Tests.js</td>
+                        <td>ai_analysis</td>
+                        <td>169</td>
+                        <td>8</td>
+                        <td>20</td>
+                        <td><span class="badge badge-regular">Regular</span></td>
+                        <td>IA-Focused</td>
+                    </tr>
+                    <tr>
+                        <td>00_Logger_Compat.js</td>
+                        <td>core_orchestration</td>
+                        <td>38</td>
+                        <td>0</td>
+                        <td>14</td>
+                        <td><span class="badge badge-bom">Bom</span></td>
+                        <td>Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>00_Menu_Manager.js</td>
+                        <td>trading_logic</td>
+                        <td>185</td>
+                        <td>14</td>
+                        <td>43</td>
+                        <td><span class="badge badge-ruim">Ruim</span></td>
+                        <td>Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>00_Pipeline_Adapter.js</td>
+                        <td>core_orchestration</td>
+                        <td>180</td>
+                        <td>5</td>
+                        <td>35</td>
+                        <td><span class="badge badge-ruim">Ruim</span></td>
+                        <td>Genérico</td>
+                    </tr>
+                    <tr>
+                        <td>00_Setup_CreateSheets.js</td>
+                        <td>core_orchestration</td>
+                        <td>186</td>
+                        <td>17</td>
+                        <td>11</td>
+                        <td><span class="badge badge-bom">Bom</span></td>
+                        <td>Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>00_Tools.js</td>
+                        <td>core_orchestration</td>
+                        <td>207</td>
+                        <td>5</td>
+                        <td>36</td>
+                        <td><span class="badge badge-ruim">Ruim</span></td>
+                        <td>IA-Focused + Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>00_Utils.js</td>
+                        <td>core_orchestration</td>
+                        <td>182</td>
+                        <td>8</td>
+                        <td>48</td>
+                        <td><span class="badge badge-ruim">Ruim</span></td>
+                        <td>Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>01_Core_Config.js</td>
+                        <td>core_orchestration</td>
+                        <td>79</td>
+                        <td>0</td>
+                        <td>24</td>
+                        <td><span class="badge badge-bom">Bom</span></td>
+                        <td>IA-Focused + Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>02_Core_Logger.js</td>
+                        <td>core_orchestration</td>
+                        <td>54</td>
+                        <td>6</td>
+                        <td>8</td>
+                        <td><span class="badge badge-bom">Bom</span></td>
+                        <td>Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>03_Cache_Unified.js</td>
+                        <td>data_management</td>
+                        <td>94</td>
+                        <td>2</td>
+                        <td>7</td>
+                        <td><span class="badge badge-bom">Bom</span></td>
+                        <td>Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>04_Core_RateLimiter.js</td>
+                        <td>core_orchestration</td>
+                        <td>55</td>
+                        <td>0</td>
+                        <td>9</td>
+                        <td><span class="badge badge-bom">Bom</span></td>
+                        <td>IA-Focused + Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>05_B3V10_TickerManager.js</td>
+                        <td>data_management</td>
+                        <td>56</td>
+                        <td>0</td>
+                        <td>3</td>
+                        <td><span class="badge badge-bom">Bom</span></td>
+                        <td>Genérico</td>
+                    </tr>
+                    <tr>
+                        <td>05_Data_Service.js</td>
+                        <td>data_management</td>
+                        <td>269</td>
+                        <td>11</td>
+                        <td>44</td>
+                        <td><span class="badge badge-ruim">Ruim</span></td>
+                        <td>Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>07_AI_Unified_Connector.js</td>
+                        <td>ai_analysis</td>
+                        <td>293</td>
+                        <td>4</td>
+                        <td>54</td>
+                        <td><span class="badge badge-ruim">Ruim</span></td>
+                        <td>IA-Focused + Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>08_AI_Ensemble.js</td>
+                        <td>ai_analysis</td>
+                        <td>669</td>
+                        <td>15</td>
+                        <td>203</td>
+                        <td><span class="badge badge-ruim">Ruim</span></td>
+                        <td>IA-Focused + Technical-Analysis + Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>08_Output_Unified.js</td>
+                        <td>data_management</td>
+                        <td>221</td>
+                        <td>6</td>
+                        <td>101</td>
+                        <td><span class="badge badge-regular">Regular</span></td>
+                        <td>Technical-Analysis + Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>10_Data_YahooFetcher.js</td>
+                        <td>api_fetchers</td>
+                        <td>184</td>
+                        <td>6</td>
+                        <td>51</td>
+                        <td><span class="badge badge-ruim">Ruim</span></td>
+                        <td>Financial-Data + Google-Apps-Script</td>
+                    </tr>
+                    <tr>
+                        <td>12_Indicators_Volume.js</td>
+                        <td>technical_indicators</td>
+                        <td>62</td>
+                        <td>0</td>
+                        <td>13</td>
+                        <td><span class="badge badge-bom">Bom</span></td>
+                        <td>Genérico</td>
+                    </tr>
+                    <tr>
+                        <td>13_Indicators_RelativeStrength...</td>
+                        <td>technical_indicators</td>
+                        <td>29</td>
+                        <td>1</td>
+                        <td>5</td>
+                        <td><span class="badge badge-bom">Bom</span></td>
+                        <td>Genérico</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="footer">
+            <p>Gerado pelo B3-v10 Professional Code Analyzer v2.0</p>
+        </div>
+    </div>
+</body>
+</html>

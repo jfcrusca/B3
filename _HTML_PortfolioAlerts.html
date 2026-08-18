@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= HtmlService.createHtmlOutputFromFile('_CSS_GlobalStyles').getContent() ?>
+</head>
+<body>
+  <div class="card">
+  <h3>🚨 Alertas da Carteira (<span id="alertsCount">= alerts.length ?</span>)</h3>
+  <hr>
+
+  <div id="portfolioAlertsList">
+    for (let i = 0; i < alerts.length; i++) { ?
+      const alert = alerts[i]; ?
+      <div class="alert-item = alert.cssClass ?"> <!-- Aplica a classe CSS dinâmica -->
+        <h4>= alert.alertMessage ? <span class="text-bold">= alert.ticker ?</span></h4>
+        <p class="text-small">Linha = alert.rowNumber ?</p>
+        <p>= alert.actionSuggestion || 'Sem ação definida' ?</p>
+      </div>
+    } ?
+  </div>
+
+  <div class="legend">
+    <p><b>Legenda:</b></p>
+    <span>🛑/🔴 Crítico</span> |
+    <span>⚠️ Atenção</span> |
+    <span>🎯 Alvo</span> |
+    <span>💡 Oportunidade</span>
+  </div>
+</div>
+</body>
+</html>

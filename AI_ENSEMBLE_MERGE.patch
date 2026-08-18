@@ -1,0 +1,1207 @@
+warning: in the working copy of '08_AI_Ensemble.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '55_AI_Ensemble.js', LF will be replaced by CRLF the next time Git touches it
+diff --git a/08_AI_Ensemble.js b/55_AI_Ensemble.js
+index c110148..edc09e7 100644
+--- a/08_AI_Ensemble.js
++++ b/55_AI_Ensemble.js
+@@ -1,1178 +1,28 @@
+ /**
+- * 08_AI_Ensemble.js
++ * 55_AI_Ensemble.js
+  * =============================================================================
+- * CENTRAL DE INTELIG├èNCIA COLETIVA DE IA (UNIFICADO v10.1 ÔÇö MERGE 08+55)
++ * ÔÜá´©Å M├ôDULO DESATIVADO ÔÇö MERGE CONCLU├ìDO EM 08_AI_Ensemble.js (v10.1)
+  * =============================================================================
+- * Fus├úo definitiva dos Ensembles 08 (Multi-IA) e 55 (Produ├º├úo Otimizada).
+- * Elimina a colis├úo de global `AIEnsemble` (o 55 sobrescrevia o 08 em runtime).
+  *
+- * M├│dulo can├┤nico: 08_AI_Ensemble.js
+- *   - Restaura getEnhancedScore, analyzeWithEnsemble, TESTAR_ENSEMBLE, DEBUG_AI_FAILURE
+- *   - Unifica analisar(prompt, options) ÔÇö compat├¡vel com 36_Agent_Analyst.js
+- *   - Unifica getEnhancedScoresBatch ÔÇö lote de 5 (do 55) + preserva├º├úo de campos
+- *   - Exp├Áe PESOS (corrige VerificarFunciona.js)
+- *   - Mant├®m pesos din├ómicos por ADX/macro e sizing din├ómico (do 08)
++ * Este arquivo foi NEUTRALIZADO para eliminar a colis├úo de global `AIEnsemble`.
+  *
+- * Depend├¬ncias:
+- *   - AI_Connector (07_AI_Unified_Connector.js)
+- *   - CONFIG (01_Core_Config.js) ÔÇö opcional, via _cfg()
+- *   - MacroFetcher (56_MacroFetcher.js) ÔÇö opcional
++ * ANTES (BUG CR├ìTICO):
++ *   - 08_AI_Ensemble.js e 55_AI_Ensemble.js declaravam `var AIEnsemble`.
++ *   - No GAS (carga alfab├®tica), o 55 sobrescrevia o 08 em runtime.
++ *   - Fun├º├Áes exclusivas do 08 eram perdidas: getEnhancedScore,
++ *     analyzeWithEnsemble, TESTAR_ENSEMBLE, DEBUG_AI_FAILURE.
++ *
++ * DEPOIS (CORRE├ç├âO):
++ *   - 08_AI_Ensemble.js ├® o m├│dulo can├┤nico e ├║nico.
++ *   - Absorveu as melhorias do 55: lote de 5 (BATCH_SIZE), _montarPromptBatch,
++ *     _calcularScoreTecnicoFallback, _makeFallbackResult, _extrairJSON, _callAI,
++ *     _cfg() e preserva├º├úo de campos no getEnhancedScoresBatch.
++ *   - Unificou `analisar(prompt, options)` (compat├¡vel com 36_Agent_Analyst.js).
++ *   - Exp├┤s `PESOS` (corrige VerificarFunciona.js).
++ *
++ * N├âO REATIVAR este arquivo sem antes remover a declara├º├úo `var AIEnsemble`
++ * para evitar nova colis├úo de global.
++ *
++ * Para reativar funcionalidades legadas, portar para 08_AI_Ensemble.js.
++ * =============================================================================
+  */
+-
+-var AIEnsemble = (function() {
+-  'use strict';
+-
+-  // ---------------------------------------------------------------------------
+-  // CONFIGURA├ç├òES
+-  // ---------------------------------------------------------------------------
+-
+-  /**
+-   * L├¬ configura├º├úo do CONFIG global ou usa fallback.
+-   */
+-  function _cfg(key, fallback) {
+-    return (typeof CONFIG !== 'undefined' && typeof CONFIG.get === 'function')
+-      ? CONFIG.get(key, fallback)
+-      : fallback;
+-  }
+-
+-  // Configura├º├Áes padr├úo do Ensemble
+-  const CONFIG_ENSEMBLE = {
+-    DISCORD_THRESHOLD: 0.40,
+-    MIN_SCORE_DEFAULT: 0.65,
+-    MIN_SCORE_BEARISH: 0.70
+-  };
+-
+-  // Pesos base caso o ADX esteja indispon├¡vel
+-  const PESOS_PADRAO = {
+-    GEMINI: 0.40,
+-    DEEPSEEK: 0.40,
+-    TECH: 0.20
+-  };
+-
+-  // Configura├º├Áes de lote e timeout (do m├│dulo 55)
+-  var CONF = {
+-    TIMEOUT_MS: _cfg('AI_TIMEOUT_MS', 25000),
+-    MAX_RETRIES: _cfg('AI_MAX_RETRIES', 2),
+-    PAUSE_BETWEEN_CALLS_MS: _cfg('AI_PAUSE_BETWEEN_CALLS_MS', 500),
+-    ENSEMBLE_WEIGHT_GEMINI: _cfg('ENSEMBLE_WEIGHT_GEMINI', 0.6),
+-    ENSEMBLE_WEIGHT_DEEPSEEK: _cfg('ENSEMBLE_WEIGHT_DEEPSEEK', 0.4),
+-    SCORE_MINIMO_APROVACAO: _cfg('IA_SCORE_MINIMO', 55),
+-    FALLBACK_SCORE: _cfg('ENSEMBLE_FALLBACK_SCORE', 50)
+-  };
+-
+-  // Tamanho do lote para getEnhancedScoresBatch (do m├│dulo 55)
+-  var BATCH_SIZE = 5;
+-
+-  // ===========================================================================
+-  // ÔÜÖ´©Å WORKFLOW A: ENRIQUECIMENTO R├üPIDO DO SCANNER (Antigo M├│dulo 55)
+-  // ===========================================================================
+-
+-  /**
+-   * Ponto de entrada do Orquestrador principal para pr├®-filtragem t├®cnica r├ípida.
+-   */
+-  function getEnhancedScore(originalAnalysis) {
+-    if (!originalAnalysis) return { finalScore: 50, confidence: 0, sentiment: 'NEUTRAL' };
+-
+-    var ensemble = analyzeWithEnsemble(originalAnalysis);
+-    var pesoEnsemble = 0.7;
+-    var pesoTecnico = 0.3;
+-    var finalScore = (ensemble.score * pesoEnsemble) + ((originalAnalysis.score || 50) * pesoTecnico);
+-
+-    return {
+-      originalScore: originalAnalysis.score || 50,
+-      ensembleScore: ensemble.score,
+-      finalScore: Math.round(finalScore),
+-      confidence: ensemble.confidence,
+-      sentiment: ensemble.sentiment,
+-      rationale: ensemble.rationale || "An├ílise combinada r├ípida",
+-      sources: ensemble.sources
+-    };
+-  }
+-
+-  /**
+-   * Orquestra├º├úo simplificada: Gemini + T├®cnico (50/50)
+-   */
+-  function analyzeWithEnsemble(technicalData) {
+-    var ticker = technicalData?.ticker;
+-    if (!ticker) {
+-      console.error("ÔØî Ensemble: ticker n├úo fornecido");
+-      return { score: 0, confidence: 0, error: "Ticker inv├ílido" };
+-    }
+-
+-    console.log("­ƒºá [AIEnsemble] Analisando r├ípido " + ticker + "...");
+-
+-    var ind = technicalData.indicators || {};
+-    var adxValue = technicalData.adx || ind.adx || 25;
+-    
+-    var bollingerUpper = technicalData.bollingerUpper || ind.bollinger?.upper || 0;
+-    var bollingerMiddle = technicalData.bollingerMiddle || ind.bollinger?.middle || 0;
+-    var bollingerLower = technicalData.bollingerLower || ind.bollinger?.lower || 0;
+-    
+-    var bollingerObj = null;
+-    if (bollingerUpper > 0 || bollingerMiddle > 0 || bollingerLower > 0) {
+-      bollingerObj = { upper: bollingerUpper, middle: bollingerMiddle, lower: bollingerLower };
+-    }
+-    
+-    var rsiValue = ind.rsi || technicalData.rsi || 50;
+-    var volumeRelativo = ind.volumeRelativo || technicalData.volumeRelativo || 1.0;
+-    var preco = technicalData.price || 0;
+-    var setupType = technicalData.setup || technicalData.setupType || 'N/A';
+-    var scoreTecnico = technicalData.score || 50;
+-    var isWeeklyBullish = technicalData.isWeeklyBullish || false;
+-
+-    var enrichedData = {
+-      ticker: ticker,
+-      price: preco,
+-      score: scoreTecnico,
+-      setup: setupType,
+-      isWeeklyBullish: isWeeklyBullish,
+-      indicators: { rsi: rsiValue, adx: adxValue, bollinger: bollingerObj, volumeRelativo: volumeRelativo }
+-    };
+-
+-    var tecnicoScore = scoreTecnico;
+-    var gemini = _getGeminiAnalysis(ticker, enrichedData);
+-
+-    if (gemini === null) {
+-      console.warn("ÔÜá´©Å [AIEnsemble] Gemini falhou na an├ílise r├ípida, usando fallback puramente t├®cnico.");
+-      return { score: tecnicoScore, confidence: 50, sentiment: 'NEUTRAL', sources: { tecnico: tecnicoScore, gemini: null } };
+-    }
+-
+-    var totalScore = (tecnicoScore * 0.5) + (gemini.score * 0.5);
+-    var finalScore = Math.min(100, Math.max(0, totalScore));
+-
+-    var sentiment = 'NEUTRAL';
+-    if (finalScore >= 65) sentiment = 'BULLISH';
+-    else if (finalScore <= 35) sentiment = 'BEARISH';
+-
+-    return {
+-      score: Math.round(finalScore),
+-      confidence: 100,
+-      sentiment: sentiment,
+-      sources: { tecnico: tecnicoScore, gemini: gemini.score },
+-      rationale: gemini.rationale || "An├ílise r├ípida processada.",
+-      timestamp: new Date().toISOString(),
+-      // Ô£à Inclui racional para ser persistido e exibido no SheetWriter
+-      aiRationale: gemini.rationale || "An├ílise r├ípida IA." 
+-    };
+-  }
+-
+-  /**
+-   * Gera um score t├®cnico combinado a partir dos indicadores dispon├¡veis.
+-   * Usado como fallback quando a IA n├úo responde. (do m├│dulo 55)
+-   * @param {Object} op ÔÇö oportunidade com indicadores
+-   * @returns {number} score 0-100
+-   */
+-  function _calcularScoreTecnicoFallback(op) {
+-    if (!op) return CONF.FALLBACK_SCORE;
+-
+-    var score = 50; // neutro
+-
+-    // Ajuste por RSI
+-    var rsi = op.rsi || (op.indicators && op.indicators.rsi) || 50;
+-    if (rsi > 30 && rsi < 70) score += 5;  // zona saud├ível
+-    if (rsi > 50 && rsi < 65) score += 10; // momentum positivo
+-    if (rsi >= 70) score -= 10;            // sobrecomprado
+-    if (rsi <= 30) score -= 5;             // sobrevendido
+-
+-    // Ajuste por ADX
+-    var adx = op.adx || (op.indicators && op.indicators.adx) || 25;
+-    if (adx >= 25) score += 10;  // tend├¬ncia presente
+-    if (adx >= 30) score += 5;   // tend├¬ncia forte
+-    if (adx < 20) score -= 10;   // lateral
+-
+-    // Ajuste por RR
+-    var rr = op.rr || 0;
+-    if (rr >= 2.0) score += 10;
+-    if (rr >= 3.0) score += 5;
+-    if (rr < 1.5) score -= 5;
+-
+-    // Ajuste por setupType
+-    var setup = op.setupType || op.setup || '';
+-    if (setup.indexOf('PULLBACK') !== -1) score += 5;
+-    if (setup.indexOf('ROMBIMENTO') !== -1) score += 10;
+-    if (setup.indexOf('TENDENCIA') !== -1) score += 5;
+-
+-    // Normaliza entre 0 e 100
+-    return Math.max(0, Math.min(100, Math.round(score)));
+-  }
+-
+-  /**
+-   * Gera prompt multi-ativo para an├ílise em lote ├║nica. (do m├│dulo 55)
+-   */
+-  function _montarPromptBatch(batch) {
+-    var linhas = batch.map(function(op, idx) {
+-      var ind = op.indicators || {};
+-      return (
+-        'Ativo ' + (idx + 1) + ': ' + op.ticker + '\n' +
+-        '  Score T├®cnico: ' + (op.score || 50) + '\n' +
+-        '  RSI: ' + (op.rsi || ind.rsi || 50) + '\n' +
+-        '  ADX: ' + (op.adx || ind.adx || 25) + '\n' +
+-        '  R/R: ' + (op.rr || 0) + '\n' +
+-        '  Setup: ' + (op.setupType || op.setup || 'N/A') + '\n' +
+-        '  Pre├ºo: R$ ' + (op.price || 0) + '\n' +
+-        '  Vol Rel: ' + (op.volumeRelativo || (ind.volumeRelativo || 1.0).toFixed(2)) + 'x\n'
+-      );
+-    }).join('\n');
+-
+-    return (
+-      'Voc├¬ ├® um analista t├®cnico quantitativo da B3. ' +
+-      'Analise os ' + batch.length + ' ativos abaixo e retorne APENAS um array JSON.\n' +
+-      'Formato: [{"ticker":"XX","score":<0-100>,"sentiment":"BULLISH|BEARISH|NEUTRAL","rationale":"..."}, ...]\n\n' +
+-      'REGRAS:\n' +
+-      '- ADX < 20 sem tend├¬ncia ÔåÆ score < 40\n' +
+-      '- RSI > 70 sobrecomprado ÔåÆ score < 50\n' +
+-      '- RR >= 2.0 e ADX >= 25 ÔåÆ score > 60\n' +
+-      '- Score >= 65: BULLISH | Score < 40: BEARISH | Demais: NEUTRAL\n' +
+-      '- Volume Relativo < 0.6: penalizar liquidez (reduzir score em 10-15)\n' +
+-      '- Volume Relativo > 1.5: confirmar momentum (aumentar score em 5-10)\n' +
+-      '- Seja CONSERVADOR: prefira NEUTRAL a BULLISH em caso de d├║vida\n' +
+-      '- Retorne APENAS o array JSON, sem texto adicional.\n\n' +
+-      'ATIVOS:\n' + linhas
+-    );
+-  }
+-
+-  /**
+-   * Helper para criar resultado fallback. (do m├│dulo 55)
+-   */
+-  function _makeFallbackResult(ticker, score, motivo) {
+-    return {
+-      ticker: ticker,
+-      score: score,
+-      enrichedScore: score,
+-      ensembleScore: score,
+-      aiScore: score,
+-      aiConfidence: 0,
+-      sentiment: 'NEUTRAL',
+-      aiRationale: motivo || 'Fallback',
+-      fallback: true
+-    };
+-  }
+-
+-  /**
+-   * Processamento em lote para o Orquestrador v9.5+
+-   * UNIFICADO: usa lote de 5 (do 55) + preserva campos originais (do 55),
+-   * com fallback individual via getEnhancedScore (do 08) quando o lote falha.
+-   */
+-  function getEnhancedScoresBatch(lista) {
+-    if (!lista || !Array.isArray(lista) || lista.length === 0) return [];
+-    console.log("­ƒºá [AIEnsemble] Processando lote de " + lista.length + " ativos (batch=" + BATCH_SIZE + ")...");
+-
+-    var total = lista.length;
+-    var resultados = [];
+-
+-    // Processa em lotes para reduzir chamadas de API
+-    for (var batchStart = 0; batchStart < total; batchStart += BATCH_SIZE) {
+-      var batch = lista.slice(batchStart, batchStart + BATCH_SIZE);
+-      var batchNum = Math.floor(batchStart / BATCH_SIZE) + 1;
+-      var totalBatches = Math.ceil(total / BATCH_SIZE);
+-      var batchTickers = batch.map(function(o) { return o.ticker; }).join(', ');
+-
+-      console.log("   ­ƒôª Lote " + batchNum + "/" + totalBatches + ": " + batchTickers);
+-
+-      // Tenta an├ílise via IA em lote (apenas se houver mais de 1 ativo)
+-      var resultadoIA = null;
+-      if (batch.length > 1) {
+-        try {
+-          var batchPrompt = _montarPromptBatch(batch);
+-          var resposta = _callAI(batchPrompt, {
+-            model: _cfg('GEMINI_MODEL', 'gemini-3.1-flash-lite'),
+-            temperature: 0.1,
+-            jsonMode: true
+-          });
+-          resultadoIA = resposta ? _extrairJSON(resposta) : null;
+-        } catch (e) {
+-          console.warn("ÔÜá´©Å [AIEnsemble] Falha no lote IA: " + e.message);
+-          resultadoIA = null;
+-        }
+-      }
+-
+-      // Processa cada ativo no lote
+-      for (var i = 0; i < batch.length; i++) {
+-        var op = batch[i];
+-        if (!op || !op.ticker) {
+-          resultados.push(_makeFallbackResult(op ? op.ticker : 'N/A', 0, 'Dados inv├ílidos'));
+-          continue;
+-        }
+-
+-        try {
+-          var ticker = op.ticker;
+-          var scoreBase = (typeof op.score === 'number' && isFinite(op.score)) ? op.score : 50;
+-
+-          // Extrai an├ílise deste ativo do resultado do lote
+-          var parsedItem = null;
+-          if (Array.isArray(resultadoIA)) {
+-            for (var j = 0; j < resultadoIA.length; j++) {
+-              var p = resultadoIA[j];
+-              if (p && p.ticker && p.ticker.toUpperCase() === ticker.toUpperCase()) {
+-                parsedItem = p;
+-                break;
+-              }
+-            }
+-          } else if (resultadoIA && typeof resultadoIA === 'object' && resultadoIA.ticker) {
+-            // Resposta ├║nica (caso lote de 1)
+-            if (resultadoIA.ticker.toUpperCase() === ticker.toUpperCase()) {
+-              parsedItem = resultadoIA;
+-            }
+-          }
+-
+-          var aiScore, sentiment, rationale;
+-
+-          if (parsedItem && typeof parsedItem.score === 'number') {
+-            aiScore = Math.max(0, Math.min(100, Math.round(parsedItem.score)));
+-            sentiment = parsedItem.sentiment || 'NEUTRAL';
+-            rationale = parsedItem.rationale || 'An├ílise Ensemble';
+-          } else {
+-            // Fallback: tenta enriquecimento individual r├ípido (do 08) e, se falhar, t├®cnico puro
+-            var enhanced = null;
+-            try {
+-              enhanced = getEnhancedScore(op);
+-            } catch (e) {
+-              enhanced = null;
+-            }
+-            if (enhanced && enhanced.finalScore !== undefined && enhanced.sources && enhanced.sources.gemini !== null) {
+-              aiScore = enhanced.finalScore;
+-              sentiment = enhanced.sentiment || 'NEUTRAL';
+-              rationale = enhanced.rationale || 'An├ílise individual r├ípida';
+-            } else {
+-              aiScore = _calcularScoreTecnicoFallback(op);
+-              sentiment = aiScore >= 65 ? 'BULLISH' : (aiScore < 40 ? 'BEARISH' : 'NEUTRAL');
+-              rationale = 'Fallback t├®cnico (lote sem resposta IA)';
+-            }
+-          }
+-
+-          // Score combinado: m├®dia ponderada entre score t├®cnico original e IA
+-          var ensembleScore = Math.round((scoreBase * 0.4) + (aiScore * 0.6));
+-          var aiConfidence = parsedItem ? 0.8 : 0.3;
+-
+-          resultados.push({
+-            ticker: ticker,
+-            score: scoreBase,
+-            enrichedScore: ensembleScore,
+-            ensembleScore: ensembleScore,
+-            aiScore: aiScore,
+-            aiConfidence: aiConfidence,
+-            sentiment: sentiment,
+-            aiRationale: rationale,
+-            fallback: !parsedItem,
+-            // Preserva campos originais
+-            price: op.price,
+-            rr: op.rr,
+-            rsi: op.rsi,
+-            adx: op.adx,
+-            setupType: op.setupType,
+-            setup: op.setup,
+-            indicators: op.indicators,
+-            reprovado: op.reprovado,
+-            motivo: op.motivo,
+-            macroMultiplier: op.macroMultiplier,
+-            avgVolume: op.avgVolume,
+-            livePrice: op.livePrice,
+-            estrategiaEntrada: op.estrategiaEntrada,
+-            stopLoss: op.stopLoss,
+-            target1: op.target1,
+-            target2: op.target2,
+-            fiboPrice: op.fiboPrice,
+-            pivot: op.pivot,
+-            riscoPercent: op.riscoPercent,
+-            volFactor: op.volFactor,
+-            volume: op.volume,
+-            volumeRelativo: op.volumeRelativo,
+-            volumeStatus: op.volumeStatus,
+-            paReason: op.paReason,
+-            riskDebug: op.riskDebug,
+-            isWeeklyBullish: op.isWeeklyBullish,
+-            data: op.data,
+-            observacoes: op.observacoes,
+-            bollingerUpper: op.bollingerUpper,
+-            bollingerMiddle: op.bollingerMiddle,
+-            bollingerLower: op.bollingerLower
+-          });
+-
+-          console.log("   Ô£à [AIEnsemble] " + ticker + ": score=" + scoreBase + " ÔåÆ IA=" + aiScore + " ÔåÆ ensemble=" + ensembleScore + " | " + sentiment);
+-
+-        } catch (e) {
+-          console.error("ÔØî [AIEnsemble] Erro ao processar " + (op.ticker || '?') + ": " + e.message);
+-          resultados.push(_makeFallbackResult(op.ticker || 'N/A', op.score || 0, 'Erro: ' + e.message));
+-        }
+-      }
+-
+-      // Pausa entre lotes (n├úo entre cada ativo)
+-      if (batchStart + BATCH_SIZE < total) {
+-        Utilities.sleep(CONF.PAUSE_BETWEEN_CALLS_MS);
+-      }
+-    }
+-
+-    console.log("Ô£à [AIEnsemble] Lote conclu├¡do. " + resultados.length + "/" + total + " processados.");
+-    return resultados;
+-  }
+-
+-  /**
+-   * Chama o conector unificado de IA com fallback autom├ítico. (do m├│dulo 55)
+-   * @param {string} prompt
+-   * @param {Object} [options]
+-   * @returns {string|null}
+-   */
+-  function _callAI(prompt, options) {
+-    options = options || {};
+-    options.jsonMode = true;
+-
+-    if (typeof AI_Connector === 'undefined') {
+-      console.warn('ÔÜá´©Å [AIEnsemble] AI_Connector indispon├¡vel');
+-      return null;
+-    }
+-
+-    try {
+-      // Tenta Gemini primeiro
+-      var resposta = AI_Connector.callGemini(prompt, options);
+-      if (resposta) return resposta;
+-
+-      // Fallback para DeepSeek
+-      console.warn('ÔÜá´©Å [AIEnsemble] Gemini falhou, tentando DeepSeek...');
+-      resposta = AI_Connector.callDeepSeek(prompt, options);
+-      return resposta;
+-
+-    } catch (e) {
+-      console.error('ÔØî [AIEnsemble] Erro ao chamar IA: ' + e.message);
+-      return null;
+-    }
+-  }
+-
+-  // ===========================================================================
+-  // ÔÜÖ´©Å WORKFLOW B: VALIDA├ç├âO PROFUNDA MULTI-AGENTE (Antigo M├│dulo 08)
+-  // ===========================================================================
+-
+-  /**
+-   * Ponto de entrada do AgentAnalyst para valida├º├úo profunda multi-IA (Gemini + DeepSeek).
+-   * UNIFICADO: assinatura compat├¡vel com 36_Agent_Analyst.js ÔÇö `analisar(prompt, options)`.
+-   * Tamb├®m aceita a assinatura legada `analisar(prompt, dadosTecnicos, macroRegime)`.
+-   * Implementa pesos din├ómicos em fun├º├úo do regime (ADX) e dimensionamento de lote (sizing) din├ómico.
+-   */
+-  function analisar(prompt, options, macroRegimeLegacy) {
+-    console.log("­ƒºá [AIEnsemble] Iniciando an├ílise multi-IA profunda...");
+-
+-    // Normaliza a entrada para suportar ambas as assinaturas:
+-    //   - Nova (55/AgentAnalyst): analisar(prompt, {ticker, score, trend, rsi, adx, macd})
+-    //   - Legada (08): analisar(prompt, dadosTecnicos, macroRegime)
+-    var dadosTecnicos = options || {};
+-    var macroRegime = macroRegimeLegacy || dadosTecnicos.macroRegime || "NEUTRAL";
+-
+-    var ticker = dadosTecnicos.ticker || "Ativo";
+-    
+-    // Unificando escala para 0-100 em todo o m├│dulo
+-    var rawTechScore = dadosTecnicos.score || 50;
+-    var techScore = rawTechScore > 1 ? rawTechScore : rawTechScore * 100;
+-
+-    var adx = dadosTecnicos.adx || 25; // L├¬ o ADX do ativo para o ajuste de pesos din├ómicos
+-
+-    // Prompts customizados para for├ºar especializa├º├Áes opostas e garantir respostas JSON v├ílidas
+-    const promptGemini = `${prompt}\n\nVoc├¬ ├® um trader de MOMENTUM. Prefira tend├¬ncia forte.\n` +
+-      `REGRAS DE RESPOSTA:\n` +
+-      `1. Responda ESTRITAMENTE em formato JSON.\n` +
+-      `2. N├úo inclua explica├º├Áes, coment├írios ou markdown no retorno.\n` +
+-      `3. Retorne EXATAMENTE este formato: {"score": n├║mero entre 0.00 e 1.00}\n` +
+-      `4. Se o cen├írio for otimista, score > 0.60. Se pessimista, < 0.40.\n\n` +
+-      `Exemplo: {"score": 0.85}`;
+-
+-    const promptDeepSeek = `${prompt}\n\nVoc├¬ ├® um trader de REVERS├âO ├Ç M├ëDIA. Prefira sobrevenda/sobrecompra.\n` +
+-      `REGRAS DE RESPOSTA:\n` +
+-      `1. Responda ESTRITAMENTE em formato JSON.\n` +
+-      `2. N├úo inclua explica├º├Áes, coment├írios ou markdown no retorno.\n` +
+-      `3. Retorne EXATAMENTE este formato: {"score": n├║mero entre 0.00 e 1.00}\n` +
+-      `4. Se o cen├írio for de exaust├úo de venda, score > 0.60.\n\n` +
+-      `Exemplo: {"score": 0.75}`;
+-
+-    // ÔÜí EXECU├ç├âO PARALELA (FETCH ALL)
+-    const requests = [];
+-    const requestTypes = [];
+-
+-    // Ô£à CORRE├ç├âO: Apenas adiciona a requisi├º├úo se ela for v├ílida, evitando `null` em `requests`
+-    try {
+-      const reqG = AI_Connector.buildGeminiRequest(promptGemini, { jsonMode: true });
+-      if (reqG) {
+-        requests.push({ ...reqG.params, url: reqG.url });
+-        requestTypes.push("GEMINI");
+-      } else {
+-        console.warn("ÔÜá´©Å [AIEnsemble] buildGeminiRequest retornou null. Verifique GEMINI_API_KEY.");
+-      }
+-    } catch (e) { console.error("ÔØî Erro ao construir requisi├º├úo Gemini: " + e.message); }
+-
+-    try {
+-      const reqD = AI_Connector.buildDeepSeekRequest(promptDeepSeek, { jsonMode: true });
+-      if (reqD) {
+-        requests.push({ ...reqD.params, url: reqD.url });
+-        requestTypes.push("DEEPSEEK");
+-      } else {
+-        console.warn("ÔÜá´©Å [AIEnsemble] buildDeepSeekRequest retornou null. Verifique DEEPSEEK_API_KEY ou limite di├írio.");
+-      }
+-    } catch (e) { console.error("ÔØî Erro ao construir requisi├º├úo DeepSeek: " + e.message); }
+-
+-    let gemini = null;
+-    let deepseek = null;
+-
+-    if (requests.length === 0) {
+-      console.warn("ÔÜá´©Å [AIEnsemble] Nenhuma requisi├º├úo de IA p├┤de ser constru├¡da (verifique as chaves de API).");
+-      return { rejected: true, decision: "NEUTRO", finalScore: techScore, rationale: "Falha na constru├º├úo de requisi├º├Áes IA." };
+-    }
+-
+-    console.log("­ƒôí [AIEnsemble] Preparando fetchAll para:", requestTypes.join(", "));
+-
+-    try {
+-      const responses = UrlFetchApp.fetchAll(requests);
+-      var parseFailures = 0;
+-      responses.forEach((resp, idx) => {
+-        const text = resp.getContentText();
+-        const type = requestTypes[idx];
+-        console.log(`­ƒôí [AIEnsemble] ${type} HTTP ${resp.getResponseCode()}`);
+-
+-        if (resp.getResponseCode() === 200) {
+-          var prepped = null;
+-          var outputText = null;
+-
+-          if (type === 'GEMINI') {
+-            try {
+-              const rawJson = JSON.parse(text);
+-              if (rawJson.candidates && rawJson.candidates[0] && rawJson.candidates[0].content && rawJson.candidates[0].content.parts && rawJson.candidates[0].content.parts[0]) {
+-                outputText = rawJson.candidates[0].content.parts[0].text || JSON.stringify(rawJson.candidates[0].content.parts[0]);
+-              }
+-            } catch (extractErr) {
+-              // fallback para texto bruto
+-              outputText = text;
+-            }
+-          } else if (type === 'DEEPSEEK') {
+-            try {
+-              const rawJson = JSON.parse(text);
+-              if (rawJson.choices && rawJson.choices[0] && rawJson.choices[0].message) {
+-                outputText = rawJson.choices[0].message.content;
+-              }
+-            } catch (extractErr) {
+-              // fallback para texto bruto
+-              outputText = text;
+-            }
+-          }
+-
+-          if (!outputText) {
+-            outputText = text;
+-          }
+-
+-          prepped = outputText;
+-          try {
+-            if (typeof AI_Connector !== 'undefined' && typeof AI_Connector.cleanJsonBlock === 'function') {
+-              const cleaned = AI_Connector.cleanJsonBlock(outputText);
+-              if (cleaned) prepped = cleaned;
+-            }
+-          } catch (cleanErr) {
+-            console.warn("ÔÜá´©Å [AIEnsemble] cleanJsonBlock falhou:", cleanErr.message);
+-          }
+-
+-          const parsed = _safeParse(prepped);
+-          if (parsed) {
+-            if (type === 'GEMINI') gemini = parsed;
+-            if (type === 'DEEPSEEK') deepseek = parsed;
+-          } else {
+-            parseFailures++;
+-            console.warn(`ÔÜá´©Å [AIEnsemble] ${type} retornou resposta inv├ílida ou sem JSON esperado.`);
+-            try {
+-              console.log(`­ƒöì [AIEnsemble] Detalhes do response (${type} index=${idx}): length=${text ? text.length : 0}`);
+-              console.log("­ƒöì [AIEnsemble] Headers:", JSON.stringify(resp.getAllHeaders()));
+-              console.log("­ƒöì [AIEnsemble] Output extra├¡do (at├® 2000 chars):", outputText ? outputText.substring(0, 2000) : "<vazio>");
+-              console.log("­ƒöì [AIEnsemble] Conte├║do bruto da resposta (at├® 2000 chars):", text ? text.substring(0, 2000) : "<vazio>");
+-            } catch (logErr) {
+-              console.warn("ÔÜá´©Å [AIEnsemble] Falha ao logar conte├║do bruto:", logErr.message);
+-            }
+-          }
+-        } else {
+-          parseFailures++;
+-          console.warn(`ÔÜá´©Å [AIEnsemble] ${type} retornou erro HTTP ${resp.getResponseCode()}`);
+-          try {
+-            console.log(`­ƒöì [AIEnsemble] Detalhes do response (${type} index=${idx}): length=${text ? text.length : 0}`);
+-            console.log("­ƒöì [AIEnsemble] Headers:", JSON.stringify(resp.getAllHeaders()));
+-            console.log("­ƒöì [AIEnsemble] Conte├║do bruto da resposta (at├® 2000 chars):", text ? text.substring(0, 2000) : "<vazio>");
+-          } catch (logErr) {
+-            console.warn("ÔÜá´©Å [AIEnsemble] Falha ao logar conte├║do bruto:", logErr.message);
+-          }
+-        }
+-      });
+-
+-      // Telemetria simples: avisar se muitos parses falharem no caminho paralelo
+-      try {
+-        const failureRate = parseFailures / requests.length;
+-        if (failureRate > 0.2) {
+-          console.warn(`ÔÜá´©Å [AIEnsemble] Alta taxa de falha de parse no fetchAll: ${(failureRate * 100).toFixed(0)}% ÔÇö usando fallback sequencial com mais frequ├¬ncia.`);
+-        }
+-      } catch (tErr) {
+-        /* silent */
+-      }
+-
+-    } catch (e) {
+-      console.error("ÔØî [AIEnsemble] Falha no processamento paralelo: " + e.message);
+-    }
+-
+-    // Extra├º├úo com normaliza├º├úo para 0-100
+-    var gS = _extractScore(gemini); 
+-    var dS = _extractScore(deepseek);
+-
+-    if (gS === null && dS === null) {
+-      console.warn("ÔÜá´©Å [AIEnsemble] Falha inicial de IA; tentando fallback sequencial para isolar Gemini e DeepSeek.");
+-
+-      if (reqG) {
+-        try {
+-          var geminiRaw = AI_Connector.callGemini(promptGemini, { jsonMode: true, temperature: 0.2 });
+-          console.log("­ƒöì [AIEnsemble] Gemini fallback raw:", geminiRaw ? geminiRaw.substring(0, 400) : "<vazio>");
+-          var parsedGemini = _safeParse(geminiRaw);
+-          if (parsedGemini) {
+-            gemini = parsedGemini;
+-            gS = _extractScore(gemini);
+-          }
+-        } catch (e) {
+-          console.warn("ÔÜá´©Å [AIEnsemble] Fallback Gemini falhou: " + e.message);
+-        }
+-      }
+-
+-      if (reqD) {
+-        try {
+-          var deepseekRaw = AI_Connector.callDeepSeek(promptDeepSeek, { jsonMode: true, temperature: 0.2 });
+-          console.log("­ƒöì [AIEnsemble] DeepSeek fallback raw:", deepseekRaw ? deepseekRaw.substring(0, 400) : "<vazio>");
+-          var parsedDeepSeek = _safeParse(deepseekRaw);
+-          if (parsedDeepSeek) {
+-            deepseek = parsedDeepSeek;
+-            dS = _extractScore(deepseek);
+-          }
+-        } catch (e) {
+-          console.warn("ÔÜá´©Å [AIEnsemble] Fallback DeepSeek falhou: " + e.message);
+-        }
+-      }
+-    }
+-
+-    if (gS !== null) gS *= 100;
+-    if (dS !== null) dS *= 100;
+-
+-    if (gS !== null && isNaN(gS)) gS = null;
+-    if (dS !== null && isNaN(dS)) dS = null;
+-
+-    // Ajuste din├ómico de pesos (considera nulls)
+-    var weights = _ajustarPesosDinamicos(gS, dS, adx, macroRegime);
+-
+-    // M├®dia ponderada com pesos inteligentes
+-    var finalScore = (weights.GEMINI * (gS || 0)) + (weights.DEEPSEEK * (dS || 0)) + (weights.TECH * techScore);
+-
+-    var diff = (gS !== null && dS !== null) ? Math.abs(gS - dS) : 0;
+-    
+-    console.log("­ƒôè [Ensemble] Scores: Gemini: " + (gS !== null ? gS.toFixed(1) : "OFF") + " | DeepSeek: " + (dS !== null ? dS.toFixed(1) : "OFF") + " | Tech: " + techScore.toFixed(1));
+-    console.log("ÔÜû´©Å [Ensemble] Pesos: Gemini: " + (weights.GEMINI * 100).toFixed(0) + "% | DeepSeek: " + (weights.DEEPSEEK * 100).toFixed(0) + "% | Tech: " + (weights.TECH * 100).toFixed(0) + "%");
+-
+-    // Valida├º├úo de Conflito Cr├¡tico (Bloqueio)
+-    var conflitoBloqueante = false;
+-    // Se as duas concordam em dire├º├Áes opostas com for├ºa (diff > 40 pontos)
+-    // Ô£à Ajuste: Aumentar o threshold de conflito para ser menos agressivo em BEARISH
+-    var currentDiscordThreshold = (macroRegime === "BEARISH" && techScore >= 70) ? 50 : (CONFIG_ENSEMBLE.DISCORD_THRESHOLD * 100);
+-    if (gS !== null && dS !== null && diff > currentDiscordThreshold) {
+-      console.warn("­ƒÜ¿ [AIEnsemble] Conflito extremo de convic├º├úo detectado. Vetando opera├º├úo.");
+-      conflitoBloqueante = true;
+-    }
+-
+-    // ==============================
+-    // ÔÜû´©Å PENALIZA├ç├âO POR DIVERG├èNCIA
+-    // ==============================
+-    if (gS !== null && dS !== null) {
+-      var diff2 = Math.abs(gS - dS);
+-
+-      if (diff2 > 35) {
+-        console.warn("­ƒÜ¿ Diverg├¬ncia forte entre IAs: " + diff2.toFixed(1));
+-        finalScore *= 0.85; // penaliza├º├úo forte por falta de consenso
+-      } else if (diff2 > 20) {
+-        console.warn("ÔÜá´©Å Diverg├¬ncia moderada entre IAs: " + diff2.toFixed(1));
+-        // Ô£à CORRE├ç├âO: Penalidade menos severa se em regime BEARISH e score t├®cnico alto
+-        if (macroRegime === "BEARISH" && techScore >= 70) {
+-          finalScore *= 0.95; // Penalidade reduzida
+-        } else {
+-          finalScore *= 0.90; // Penalidade padr├úo
+-        }
+-      }
+-    }
+-
+-    // Regra de Threshold Operacional
+-    var threshold = (macroRegime === "BEARISH" ? CONFIG_ENSEMBLE.MIN_SCORE_BEARISH : CONFIG_ENSEMBLE.MIN_SCORE_DEFAULT) * 100;
+-    
+-    var rejected = finalScore < threshold || conflitoBloqueante;
+-    
+-    if (rejected) {
+-      var motivoRejeicao = conflitoBloqueante ? "Conflito cr├¡tico de intelig├¬ncias" : "Score " + Math.round(finalScore) + " abaixo do limite " + Math.round(threshold);
+-      
+-      return {
+-        finalScore: Math.round(finalScore),
+-        decision: "NEUTRO",
+-        rejected: true,
+-        rationale: "Descartado pelo Ensemble: " + motivoRejeicao,
+-        breakdown: { gemini: gS, deepseek: dS, tecnico: techScore, conflito: diff },
+-        pesos: weights,
+-        positionSize: 0
+-      };
+-    }
+-
+-    // Decis├úo final
+-    var decision = _scoreToDecision(finalScore / 100);
+-
+-    var positionSize = _calcularSizingDinamico(finalScore / 100, (gS || 0) / 100, (dS || 0) / 100, macroRegime);
+-
+-    return {
+-      finalScore: Math.round(finalScore),
+-      decision: decision,
+-      rejected: false,
+-      rationale: "Aprovado pelo Ensemble de IA. Consenso quantitativo atingido.",
+-      breakdown: { gemini: gS, deepseek: dS, tecnico: techScore, conflito: diff },
+-      pesos: weights,
+-      positionSize: positionSize
+-    };
+-  }
+-
+-  // ===========================================================================
+-  // ­ƒøá´©Å FUN├ç├òES AUXILIARES / MOTORES PRIVADOS
+-  // ===========================================================================
+-
+-  /**
+-   * Ajusta dinamicamente os pesos com base no regime de ADX e falhas de resposta das IAs.
+-   * Evita a anula├º├úo de estrat├®gias opostas em regimes claros.
+-   */
+-  function _ajustarPesosDinamicos(gScore, dScore, adxValue, macroRegime) {
+-    var w = { GEMINI: PESOS_PADRAO.GEMINI, DEEPSEEK: PESOS_PADRAO.DEEPSEEK, TECH: PESOS_PADRAO.TECH };
+-
+-    // 1. Tratamento de Aus├¬ncia de Resposta (Fallback de Peso)
+-    var geminiFalhou = gScore === null || gScore === undefined;
+-    var deepseekFalhou = dScore === null || dScore === undefined;
+-
+-    // CASO 1: Ambas as IAs falharam - PRIVILEGIAR T├ëCNICO
+-    if (geminiFalhou && deepseekFalhou) {
+-      console.warn("ÔÜá´©Å [AIEnsemble] AMBAS as IAs falharam. Usando t├®cnico 100%.");
+-      w.GEMINI = 0;
+-      w.DEEPSEEK = 0;
+-      w.TECH = 1.0;
+-      return w;
+-    }
+-
+-    // CASO 2: Apenas DeepSeek falhou
+-    if (deepseekFalhou) {
+-      console.warn("ÔÜá´©Å [AIEnsemble] DeepSeek falhou, usando Gemini + T├®cnico (50/50).");
+-      w.DEEPSEEK = 0;
+-      w.GEMINI = 0.50;
+-      w.TECH = 0.50;
+-      return w;
+-    }
+-
+-    // CASO 3: Apenas Gemini falhou
+-    if (geminiFalhou) {
+-      console.warn("ÔÜá´©Å [AIEnsemble] Gemini falhou, usando DeepSeek + T├®cnico (50/50).");
+-      w.GEMINI = 0;
+-      w.DEEPSEEK = 0.50;
+-      w.TECH = 0.50;
+-      return w;
+-    }
+-
+-    // 2. Ajuste Fino por Regime T├®cnico de Tend├¬ncia (ADX)
+-    if (adxValue > 25) {
+-      // Tend├¬ncia Forte: Privilegia o Gemini (Momentum)
+-      w.GEMINI = 0.60;
+-      w.DEEPSEEK = 0.15;
+-      w.TECH = 0.25;
+-    } else if (adxValue < 20) {
+-      // Mercado Lateral: Privilegia o DeepSeek (Revers├úo ├á M├®dia)
+-      w.GEMINI = 0.15;
+-      w.DEEPSEEK = 0.60;
+-      w.TECH = 0.25;
+-    } else {
+-      // Zona de Transi├º├úo: Pesos Equilibrados
+-      w.GEMINI = 0.35;
+-      w.DEEPSEEK = 0.35;
+-      w.TECH = 0.30;
+-    }
+-
+-    // ==============================
+-    // ­ƒîÄ AJUSTE POR REGIME MACRO
+-    // ==============================
+-    if (macroRegime === "BEARISH") {
+-      // ­ƒö┤ Mercado ruim ÔåÆ AUMENTAR PESO T├ëCNICO (maior confiabilidade)
+-      w.GEMINI *= 0.65;
+-      w.DEEPSEEK *= 1.35;
+-      w.TECH *= 1.5;
+-    } else if (macroRegime === "DEFENSIVE") {
+-      // ­ƒƒí mercado inst├ível ÔåÆ mais t├®cnico, menos Gemini
+-      w.GEMINI *= 0.75;
+-      w.DEEPSEEK *= 1.15;
+-      w.TECH *= 1.25;
+-    } else if (macroRegime === "BULLISH") {
+-      // ­ƒƒó mercado bom ÔåÆ confiar em momentum (Gemini), menos revers├úo
+-      w.GEMINI *= 1.4;
+-      w.DEEPSEEK *= 0.7;
+-      w.TECH *= 0.9;
+-    }
+-    // Normaliza├º├úo matem├ítica para garantir que a soma dos pesos seja igual a 1
+-    var total = w.GEMINI + w.DEEPSEEK + w.TECH;
+-    return {
+-      GEMINI: w.GEMINI / total,
+-      DEEPSEEK: w.DEEPSEEK / total,
+-      TECH: w.TECH / total
+-    };
+-  }
+-
+-  /**
+-   * Sizing din├ómico real baseado no score final ponderado e no contexto macro.
+-   */
+-  function _calcularSizingDinamico(finalScore, gemini, deepseek, macroRegime) {
+-    var size = 0.5; // tamanho neutro inicial
+-
+-    var consenso = (gemini > 0.7 && deepseek > 0.7);
+-    var reversao = (gemini < 0.5 && deepseek > 0.7);
+-
+-    if (consenso) {
+-      size = 1.0; // M├úo cheia no consenso de alta probabilidade
+-    } else if (reversao) {
+-      size = 0.3; // M├úo reduzida em trades contra a tend├¬ncia principal
+-    } else if (finalScore >= 0.75) {
+-      size = 0.8;
+-    } else if (finalScore >= 0.65) {
+-      size = 0.6;
+-    }
+-
+-    // ==============================
+-    // ­ƒîÄ AJUSTE DE POSITION SIZE POR MACRO
+-    // ==============================
+-    if (macroRegime === "BEARISH") {
+-      size *= 0.6; // mais conservador
+-    } else if (macroRegime === "DEFENSIVE") {
+-      size *= 0.75;
+-    } else if (macroRegime === "BULLISH") {
+-      size *= 1.1; // leve aumento
+-    }
+-
+-    return Number(size.toFixed(2));
+-  }
+-
+-  /**
+-   * Gemini Prompt Executor local.
+-   */
+-  function _getGeminiAnalysis(ticker, data) {
+-    try {
+-      if (typeof AI_Connector === 'undefined') return null;
+-
+-      var macro = null;
+-      try {
+-        if (typeof MacroFetcher !== 'undefined') {
+-          macro = MacroFetcher.getMacroContext();
+-        }
+-      } catch (e) {
+-        console.warn("ÔÜá´©Å MacroFetcher falhou no AIEnsemble:", e.message);
+-      }
+-
+-      var macroInfo = macro ? ("Contexto macro atual: " + macro.summary + "\n") : "";
+-
+-      var ind = data.indicators || {};
+-      var bbLabel = ind.bollinger 
+-        ? "Superior " + ind.bollinger.upper.toFixed(2) + " | Inferior " + ind.bollinger.lower.toFixed(2) 
+-        : "N/A";
+-
+-      var prompt = "Atue como analista quantitativo s├¬nior da B3.\n" +
+-        macroInfo +
+-        "Ativo: " + ticker + "\n" +
+-        "Setup T├®cnico: " + (data.setup || 'N/A') + "\n" +
+-        "RSI (14): " + (ind.rsi ? Number(ind.rsi).toFixed(1) : 'N/A') + "\n" +
+-        "ADX (14): " + (ind.adx ? Number(ind.adx).toFixed(1) : 'N/A') + "\n" +
+-        "Bollinger (20): " + bbLabel + "\n" +
+-        "Pre├ºo Atual: " + data.price + "\n" +
+-        "Score T├®cnico de Entrada: " + data.score + "\n" +
+-        "Tend├¬ncia Semanal: " + (data.isWeeklyBullish ? 'ALTA' : 'BAIXA') + "\n\n" +
+-        "REGRAS OBRIGAT├ôRIAS:\n" +
+-        "1. Se ADX < 20: score -= 15 e sentiment = \"BEARISH\"\n" +
+-        "2. Se pre├ºo acima da banda superior de Bollinger: score -= 10\n" +
+-        "3. Se pre├ºo abaixo da banda inferior de Bollinger: score += 5\n" +
+-        "4. Se RSI >= 62 E RSI <= 68 E ADX >= 25: score += 10\n" +
+-        "Retorne APENAS JSON:\n" +
+-        "{\"score\": 0-100, \"rationale\": \"curto\", \"sentiment\": \"BULLISH|BEARISH|NEUTRAL\"}";
+-
+-      var response = AI_Connector.callGemini(prompt, { jsonMode: true, temperature: 0.1 });
+-
+-      if (response) {
+-        var parsed = _safeParse(response);
+-        var score = Number(parsed.score);
+-
+-        if (!isNaN(score)) {
+-          return {
+-            score: Math.min(100, Math.max(0, score)),
+-            rationale: parsed.rationale || "An├ílise executada.",
+-            sentiment: parsed.sentiment || "NEUTRAL"
+-          };
+-        }
+-      }
+-    } catch(e) {
+-      console.warn("ÔÜá´©Å [AIEnsemble] Falha ao executar Gemini r├ípido: " + e.message);
+-    }
+-    return null;
+-  }
+-
+-  function _extractScore(obj) {
+-    if (obj === null || obj === undefined) {
+-      return null;
+-    }
+-
+-    if (typeof obj === 'string') {
+-      const match = obj.match(/score\s*[:=]\s*([0-9]+(?:[.,][0-9]+)?)/i);
+-      if (match) {
+-        obj = { score: match[1] };
+-      } else {
+-        const numMatch = obj.match(/([0-9]+(?:[.,][0-9]+)?)/);
+-        return numMatch ? _normalizeScore(numMatch[1]) : null;
+-      }
+-    }
+-
+-    if (typeof obj !== 'object') {
+-      return null;
+-    }
+-
+-    const scoreValue = _findScoreValue(obj);
+-    if (scoreValue === null) {
+-      return null;
+-    }
+-
+-    return _normalizeScore(scoreValue);
+-  }
+-
+-  function _findScoreValue(data) {
+-    if (data === null || data === undefined) return null;
+-    if (typeof data === 'number') return data;
+-    if (typeof data === 'string') {
+-      const match = data.match(/score\s*[:=]\s*([0-9]+(?:[.,][0-9]+)?)/i);
+-      if (match) return Number(match[1].replace(',', '.'));
+-      const trimmed = data.trim();
+-      if (/^[0-9]+(?:[.,][0-9]+)?$/.test(trimmed)) {
+-        return Number(trimmed.replace(',', '.'));
+-      }
+-      return null;
+-    }
+-    if (Array.isArray(data)) {
+-      for (var i = 0; i < data.length; i++) {
+-        var nested = _findScoreValue(data[i]);
+-        if (nested !== null) return nested;
+-      }
+-      return null;
+-    }
+-    if (typeof data === 'object') {
+-      const keys = Object.keys(data);
+-      for (var i = 0; i < keys.length; i++) {
+-        var key = keys[i];
+-        if (/^(score|ai_score|aiscore|aiScore|value|rating|result|resultado)$/i.test(key)) {
+-          var nested = _findScoreValue(data[key]);
+-          if (nested !== null) return nested;
+-        }
+-      }
+-      for (var j = 0; j < keys.length; j++) {
+-        var value = data[keys[j]];
+-        if (typeof value === 'object' || typeof value === 'string') {
+-          var nested2 = _findScoreValue(value);
+-          if (nested2 !== null) return nested2;
+-        }
+-      }
+-    }
+-    return null;
+-  }
+-
+-  function _normalizeScore(val) {
+-    if (val === null || val === undefined) return null;
+-    if (typeof val === 'string') val = val.trim().replace(',', '.').replace(/[^\d.-]/g, '');
+-    var num = Number(val);
+-    if (isNaN(num)) {
+-      // Tenta extrair apenas o primeiro n├║mero se a IA retornou texto extra
+-      var match = String(val).match(/(\d+(?:\.\d+)?)/);
+-      if (match) num = parseFloat(match[1]);
+-      else return null;
+-    }
+-    // Se o valor for > 1.0 (ex: 85), assume escala 0-100 e normaliza para 0.85
+-    var normalized = num > 1.0 ? num / 100 : num;
+-    if (normalized < 0 || normalized > 1) {
+-      console.warn("ÔÜá´©Å [AIEnsemble] Score normalizado fora de faixa detectado e descartado: " + normalized + " (raw=" + num + ")");
+-      return null;
+-    }
+-    console.log("­ƒöì [DEBUG _normalizeScore] valor=" + val + " ÔåÆ normalizado=" + normalized.toFixed(3) + " (raw: " + num + ", escala: " + (num > 1.0 ? "0-100ÔåÆ0-1" : "0-1") + ")");
+-    return normalized;
+-  }
+-
+-  function _extractTechScore(data) {
+-    if (!data) return 0.5;
+-    // Prioriza o score t├®cnico calibrado do algoritmo Core 22 se dispon├¡vel
+-    if (data.score !== undefined) return data.score > 1 ? data.score / 100 : data.score;
+-
+-    let score = 0;
+-    if (data.trend === "up") score += 0.3;
+-    if (data.rsi < 30) score += 0.2;
+-    if (data.rsi > 70) score -= 0.2;
+-    if (data.macd === "bullish") score += 0.2;
+-    return Math.max(0, Math.min(1, score + 0.5));
+-  }
+-
+-  function _safeParse(text) {
+-    if (!text) return null;
+-    if (typeof text === 'object') return text;
+-    
+-    // Se o texto for "null" (string do conector)
+-    if (text === "null" || text.trim() === "") return null;
+-
+-    // 1. Limpeza inicial de blocos de c├│digo Markdown e espa├ºos em branco
+-    let cleaned = text.toString()
+-      .replace(/<think>[\s\S]*?<\/think>/gi, '') // Blindagem contra tags de racioc├¡nio
+-      .replace(/```(?:json)?/gi, '')
+-      .replace(/```/g, '')
+-      .trim();
+-
+-    try {
+-      const parsed = JSON.parse(cleaned);
+-      if (typeof parsed === 'string') {
+-        return _safeParse(parsed);
+-      }
+-      if (typeof parsed === 'number') {
+-        return { score: parsed };
+-      }
+-      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
+-        return parsed[0];
+-      }
+-      return parsed;
+-    } catch (e) {
+-      // 2. Busca o primeiro '{' e o ├║ltimo '}' para isolar o objeto JSON de textos explicativos
+-      const start = cleaned.indexOf('{');
+-      const end = cleaned.lastIndexOf('}');
+-      
+-      if (start !== -1 && end !== -1) {
+-        // 3. Extra├º├úo e corre├º├úo de v├¡rgulas pendentes (trailing commas) que invalidam o JSON standard
+-        const jsonStr = cleaned.substring(start, end + 1).replace(/,\s*([\}\]])/g, '$1');
+-        try { return JSON.parse(jsonStr); } catch (e2) {}
+-      }
+-
+-      // 4. Fallback em texto livre: procura por um score num├®rico solto no texto
+-      const scoreMatch = cleaned.match(/score\s*[:=]\s*([0-9]+(?:[.,][0-9]+)?)/i);
+-      if (scoreMatch) {
+-        return { score: Number(scoreMatch[1].replace(',', '.')) };
+-      }
+-
+-      return null;
+-    }
+-  }
+-
+-  /**
+-   * Sanitiza e extrai JSON da resposta textual da IA. (do m├│dulo 55)
+-   * @param {string} rawText
+-   * @returns {Object|null}
+-   */
+-  function _extrairJSON(rawText) {
+-    if (!rawText || typeof rawText !== 'string') return null;
+-
+-    try {
+-      return JSON.parse(rawText);
+-    } catch (e1) {
+-      try {
+-        var limpo = rawText
+-          .replace(/```json/gi, '')
+-          .replace(/```/g, '')
+-          .replace(/<think>[\s\S]*?<\/think>/gi, '')
+-          .trim();
+-
+-        var inicio = limpo.indexOf('{');
+-        var fim = limpo.lastIndexOf('}');
+-        if (inicio !== -1 && fim !== -1) {
+-          return JSON.parse(limpo.substring(inicio, fim + 1));
+-        }
+-
+-        var inicioArr = limpo.indexOf('[');
+-        var fimArr = limpo.lastIndexOf(']');
+-        if (inicioArr !== -1 && fimArr !== -1) {
+-          return JSON.parse(limpo.substring(inicioArr, fimArr + 1));
+-        }
+-
+-        return null;
+-      } catch (e2) {
+-        console.warn('ÔÜá´©Å [AIEnsemble] Falha ao extrair JSON: ' + e2.message);
+-        return null;
+-      }
+-    }
+-  }
+-
+-  function _scoreToDecision(score) {
+-    if (score >= 0.75) return "COMPRA_FORTE";
+-    if (score >= 0.6) return "COMPRA";
+-    if (score <= 0.25) return "VENDA_FORTE";
+-    if (score <= 0.4) return "VENDA";
+-    return "NEUTRO";
+-  }
+-
+-  // ===========================================================================
+-  // Ô£à TESTES LOCAIS DO ENSEMBLE UNIFICADO + DEBUG COMPLETO
+-  // ===========================================================================
+-  function TESTAR_ENSEMBLE() {
+-    var mock = { ticker: 'PETR4', price: 36.50, score: 75, indicators: { rsi: 65, adx: 28 } };
+-    console.log("­ƒº¬ Teste AIEnsemble Unificado:");
+-    console.log("analyzeWithEnsemble:", JSON.stringify(analyzeWithEnsemble(mock), null, 2));
+-    console.log("getEnhancedScore:", JSON.stringify(getEnhancedScore(mock), null, 2));
+-  }
+-
+-  /**
+-   * Debug fun├º├úo: Verifica por que IA est├í retornando 0 ou null
+-   */
+-  function DEBUG_AI_FAILURE(ticker) {
+-    console.log("\n­ƒöì === DEBUG IA FAILURE ===");
+-    console.log("Testando chamadas de IA para: " + ticker);
+-    
+-    // Teste Gemini direto
+-    console.log("\n1´©ÅÔâú Testando AI_Connector.callGemini:");
+-    try {
+-      var promptSimples = "Responda em JSON: {\"score\": 0.75}";
+-      var resGemini = AI_Connector.callGemini(promptSimples, { jsonMode: true });
+-      console.log("  Resposta Gemini (raw):", resGemini);
+-      console.log("  Tipo:", typeof resGemini);
+-      console.log("  ├ë null?", resGemini === null);
+-      console.log("  Parsed:", _safeParse(resGemini));
+-    } catch(e) {
+-      console.error("  ÔØî Erro ao chamar Gemini:", e.message);
+-    }
+-    
+-    // Teste DeepSeek direto
+-    console.log("\n2´©ÅÔâú Testando AI_Connector.callDeepSeek:");
+-    try {
+-      var resDeepSeek = AI_Connector.callDeepSeek(promptSimples, { jsonMode: true });
+-      console.log("  Resposta DeepSeek (raw):", resDeepSeek);
+-      console.log("  Tipo:", typeof resDeepSeek);
+-      console.log("  ├ë null?", resDeepSeek === null);
+-      console.log("  Parsed:", _safeParse(resDeepSeek));
+-    } catch(e) {
+-      console.error("  ÔØî Erro ao chamar DeepSeek:", e.message);
+-    }
+-    
+-    // Teste de score extraction
+-    console.log("\n3´©ÅÔâú Testando _extractScore:");
+-    var testObjs = [
+-      { score: 0.75 },
+-      { score: 75 },
+-      null,
+-      { score: null },
+-      { score: 0 },
+-      undefined
+-    ];
+-    testObjs.forEach(function(obj, i) {
+-      var result = _extractScore(obj);
+-      console.log("  Input " + i + ":", obj, "ÔåÆ", result);
+-    });
+-    
+-    console.log("\n­ƒöì === FIM DEBUG ===");
+-  }
+-
+-  // ===========================================================================
+-  // Ô£à API P├ÜBLICA EXPORTADA
+-  // ===========================================================================
+-  return {
+-    getEnhancedScore: getEnhancedScore,
+-    analyzeWithEnsemble: analyzeWithEnsemble, // retrocompatibilidade com m├│dulo 55
+-    getEnhancedScoresBatch: getEnhancedScoresBatch, // Adicionado para Orchestrator v9.5
+-    analisar: analisar, // retrocompatibilidade com m├│dulo 08 + compat AgentAnalyst
+-    TESTAR_ENSEMBLE: TESTAR_ENSEMBLE,
+-    DEBUG_AI_FAILURE: DEBUG_AI_FAILURE,
+-    // Exposto para VerificarFunciona.js (corrige refer├¬ncia fantasma).
+-    // Contrato legado do m├│dulo 55: { GEMINI: 0.50, TECNICO: 0.50 }.
+-    // Os pesos din├ómicos reais ficam em PESOS_PADRAO (usados por _ajustarPesosDinamicos).
+-    PESOS: { GEMINI: 0.50, TECNICO: 0.50 }
+-  };
+-
+-})();

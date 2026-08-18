@@ -1,0 +1,128 @@
+<style>
+  body {
+    font-family: 'Roboto', 'Arial', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f8f9fa;
+    color: #333;
+  }
+  .container {
+    padding: 20px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  h2, h3, h4 {
+    color: #1a73e8; /* Google Blue */
+    margin-top: 0;
+    margin-bottom: 15px;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid #e0e0e0;
+    margin: 20px 0;
+  }
+  .card {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    margin-bottom: 15px;
+  }
+  .grid-2-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+  }
+  .grid-3-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 15px;
+  }
+  .text-center { text-align: center; }
+  .text-right { text-align: right; }
+  .text-bold { font-weight: bold; }
+  .text-small { font-size: 0.85em; color: #666; }
+
+  /* Cores de status/resultado */
+  .status-success { background-color: #e6f4ea; color: #0d652d; border-left: 4px solid #28a745; } /* Green */
+  .status-warning { background-color: #fff3cd; color: #856404; border-left: 4px solid #ffc107; } /* Yellow */
+  .status-danger { background-color: #fce8e6; color: #c5221f; border-left: 4px solid #dc3545; } /* Red */
+  .status-info { background-color: #e8f4f8; color: #17a2b8; border-left: 4px solid #17a2b8; } /* Blue */
+
+
+  /* Cores de status/resultado - Texto */
+  .status-success-text { color: #0d652d; } /* Green text */
+  .status-warning-text { color: #856404; } /* Yellow text */
+  .status-danger-text { color: #c5221f; } /* Red text */
+  .status-info-text { color: #17a2b8; } /* Blue text */
+
+  /* Tabela */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    font-size: 0.9em;
+  }
+  th, td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+  }
+  th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+    color: #555;
+  }
+  tbody tr:hover {
+    background-color: #f5f5f5;
+  }
+  .scrollable-content {
+    max-height: 350px; /* Altura máxima para conteúdo rolável */
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 5px;
+    background-color: #fff;
+  }
+  .legend {
+    margin-top: 20px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+    font-size: 0.85em;
+    color: #666;
+  }
+  .legend span {
+    margin-right: 10px;
+  }
+
+  .btn {
+  display: inline-block;
+  font-weight: 400;
+  color: #fff;
+  text-align: center;
+  vertical-align: middle;
+  user-select: none;
+  background-color: #1a73e8; /* Google Blue */
+  border: 1px solid #1a73e8;
+  padding: 8px 16px;
+  font-size: 1em;
+  line-height: 1.5;
+  border-radius: 4px;
+  transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+  cursor: pointer;
+}
+.btn:hover {
+  background-color: #155bb5; /* Darker blue on hover */
+  border-color: #155bb5;
+}
+.btn-primary { /* Pode ser a mesma cor do .btn ou uma variação */
+  background-color: #1a73e8;
+  border-color: #1a73e8;
+}
+.btn-primary:hover {
+  background-color: #155bb5;
+  border-color: #155bb5;
+}
+</style>

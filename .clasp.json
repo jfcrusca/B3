@@ -1,0 +1,50 @@
+{
+  "scriptId": "1cDeZdVZhr3HkcMugCov-HqCzjy4ws_MuvvEE9ViTzFFwc2RlFvCTQw6t",
+  "rootDir": ".",
+  "scriptExtensions": [
+    ".js",
+    ".gs"
+  ],
+  "htmlExtensions": [
+    ".html"
+  ],
+  "jsonExtensions": [
+    ".json"
+  ],
+  "filePushOrder": [
+    "00_Security_Utils.js",
+    "00_Logger_Compat.js",
+    "02_Core_Logger.js",
+    "01_Core_Config.js",
+    "24_Secrets_Manager.js",
+    "03_Cache_Unified.js",
+    "04_Core_RateLimiter.js",
+    "00_Utils.js",
+    "05_B3V10_TickerManager.js",
+    "05_Data_Service.js",
+    "11_Data_AlphaVantageFetcher.js",
+    "26_Data_BrapiFetcher.js",
+    "56_MacroFetcher.js",
+    "51_SecureKeyService.js",
+    "07_AI_Unified_Connector.js",
+    "55_AI_Ensemble.js",
+
+    "34_DecisionEngine.js",
+    "34_AI_Logic.js",
+    "34_AI_Prompts.js",
+    "34_AI_Service.js",
+    "20_Compliance_Unified.js",
+    "37_Agent_RiskManager.js",
+    "38_Agent_Memory.js",
+    "36_Agent_Analyst.js",
+    "35_Agent_Orchestrator.js",
+    "00_Core_Orchestrator.js",
+    "46_Debug_System.js",
+    "99_Debug_Unified.js",
+    "WebApp.js",
+    "Index.html",
+    "appsscript.json"
+  ],
+
+  "skipSubdirectories": true
+}

@@ -1,0 +1,6 @@
+- [x] Criar endpoint no `WebApp.js` para fornecer logs em tempo real durante a execução.
+- [x] Adicionar componente visual (modal ou área fixa) no `Index.html` para exibir logs e barra de progresso.
+- [x] Implementar polling ou mecanismo no `Index.html` para atualizar logs enquanto o script roda.
+- [x] Refatorar a função `rodarScanner` no `Index.html` para atualizar a barra de progresso e exibir o log.
+- [x] Implementar a lógica de registro de log no backend (ex: em `Orchestrator.executar`).
+- [x] Testar a integração da barra de progresso e logs.

@@ -1,0 +1,4797 @@
+{
+  "00_Core_Orchestrator.js": {
+    "nome_arquivo": "00_Core_Orchestrator.js",
+    "nome_modulo": "00_Core_Orchestrator",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "executarRoboB3",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "isDebugModeEnabled",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "FORCAR_EXECUCAO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 3,
+    "dependencias": {
+      "modulos": [
+        "Orchestrator",
+        "DataService"
+      ],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 449,
+      "linhas_codigo": 370,
+      "complexidade_ciclomatica": 72,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "Utilities.",
+        "PropertiesService."
+      ],
+      "ia_integracao": [
+        "AgenticEnricher"
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 3 funções: executarRoboB3, isDebugModeEnabled, FORCAR_EXECUCAO..."
+  },
+  "00_Debug_Ensemble_Tests.js": {
+    "nome_arquivo": "00_Debug_Ensemble_Tests.js",
+    "nome_modulo": "00_Debug_Ensemble_Tests",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "teste_ai_basico",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "teste_ensemble_mock",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "teste_debug_logs",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "teste_robo_full",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "teste_ensemble_real",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "teste_pesos",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "menu_testes",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      }
+    ],
+    "num_funcoes": 8,
+    "dependencias": {
+      "modulos": [
+        "DataService"
+      ],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 218,
+      "linhas_codigo": 169,
+      "complexidade_ciclomatica": 13,
+      "num_todos": 0
+    },
+    "padroes": {
+      "ia_integracao": [
+        "deepseek",
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "Teste 1: Verificar se IAs estão respondendo básico Execute: teste_ai_basico()",
+      "todos": []
+    },
+    "resumo": "Teste 1: Verificar se IAs estão respondendo básico Execute: teste_ai_basico()"
+  },
+  "00_Logger_Compat.js": {
+    "nome_arquivo": "00_Logger_Compat.js",
+    "nome_modulo": "00_Logger_Compat",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [
+        "Logger"
+      ],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 56,
+      "linhas_codigo": 38,
+      "complexidade_ciclomatica": 11,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "Logger."
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Sem descrição detectada."
+  },
+  "00_Menu_Manager.js": {
+    "nome_arquivo": "00_Menu_Manager.js",
+    "nome_modulo": "00_Menu_Manager",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "onOpen",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "build",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_RANKER",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_ATUALIZAR_ESTATISTICAS",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_SYNC_PORTFOLIO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_TELEGRAM",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_TESTAR_ALERTA_RISCO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_DARF",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_COMPLIANCE",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_LEITURA_DO_COFRE",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_DEBUG_SAUDE",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_DEBUG_PETR4",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_LIMPAR_CACHE",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_AGENT_ANALYST",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 14,
+    "dependencias": {
+      "modulos": [
+        "Ranker"
+      ],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 230,
+      "linhas_codigo": 185,
+      "complexidade_ciclomatica": 21,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 00_Menu_Manager.gs — v14.0 (TRÍADE DE COMANDO - ELITE) ===================================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 00_Menu_Manager.gs — v14.0 (TRÍADE DE COMANDO - ELITE) ==================================================================="
+  },
+  "00_Pipeline_Adapter.js": {
+    "nome_arquivo": "00_Pipeline_Adapter.js",
+    "nome_modulo": "00_Pipeline_Adapter",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "processarTicker",
+        "parametros": [
+          "ticker",
+          "ibovContext"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "testarIntegracaoAvancada",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "testeUnitarioV10_ComDadosFalsos",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "EXECUTAR_STRESS_TEST_BEAR_MARKET",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 4,
+    "dependencias": {
+      "modulos": [
+        "DataService"
+      ],
+      "apis": [
+        "Brapi",
+        "Yahoo"
+      ],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 246,
+      "linhas_codigo": 172,
+      "complexidade_ciclomatica": 27,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "============================================================================= 00_Pipeline_Adapter.gs (Versão Blindada V10.1 - COM CONTEXTO IBOV) =======================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 00_Pipeline_Adapter.gs (Versão Blindada V10.1 - COM CONTEXTO IBOV) ======================================================="
+  },
+  "00_Security_Utils.js": {
+    "nome_arquivo": "00_Security_Utils.js",
+    "nome_modulo": "00_Security_Utils",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "isSecretKeyName",
+        "parametros": [
+          "key"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "isDebugModeEnabled",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "isSecretEnforcementActive",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "assertWebAppAuthorized",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 4,
+    "dependencias": {
+      "modulos": [],
+      "apis": [
+        "Brapi"
+      ],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 63,
+      "linhas_codigo": 53,
+      "complexidade_ciclomatica": 5,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "PropertiesService."
+      ],
+      "ia_integracao": [
+        "deepseek",
+        "gemini",
+        "openai"
+      ]
+    },
+    "documentacao": {
+      "descricao": "00_Security_Utils.js — Utilitários de segurança compartilhados",
+      "todos": []
+    },
+    "resumo": "00_Security_Utils.js — Utilitários de segurança compartilhados"
+  },
+  "00_Setup_CreateSheets.js": {
+    "nome_arquivo": "00_Setup_CreateSheets.js",
+    "nome_modulo": "00_Setup_CreateSheets",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "ensureSheet",
+        "parametros": [
+          "ss",
+          "name"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "styleHeader",
+        "parametros": [
+          "range"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setHeaders",
+        "parametros": [
+          "sh",
+          "headers",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupResumoTrades",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupRelatorioRebal",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupLogPerformance",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupCarteira",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupConfiguracoes",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupDashboard",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupResultadosAnalise",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupOportunidades",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupLogs",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupSimulation",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupSimulationLog",
+        "parametros": [
+          "ss",
+          "opts"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "createSheets",
+        "parametros": [
+          "options"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "RODAR_SETUP_COMPLETO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "RECUPERAR_ABAS_PERDIDAS",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 17,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 237,
+      "linhas_codigo": 186,
+      "complexidade_ciclomatica": 7,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ],
+      "fibonacci": [
+        "fibonacci",
+        "pivots?"
+      ]
+    },
+    "documentacao": {
+      "descricao": "00_Setup_CreateSheets.gs — KIT DE RESGATE (V4 - Completo) ============================================================================= Recria a estrutura de TODAS as abas, incluindo as que sumiram. N",
+      "todos": []
+    },
+    "resumo": "00_Setup_CreateSheets.gs — KIT DE RESGATE (V4 - Completo) ============================================================================= Recria a estrutura de TODAS as abas, incluindo as que sumiram. N"
+  },
+  "00_Tools.js": {
+    "nome_arquivo": "00_Tools.js",
+    "nome_modulo": "00_Tools",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "clearLogs",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "runDiagnostics",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "monitorarRateLimits",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_RESET_YAHOO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_RESET_GEMINI",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "adicionarMenuRateLimiter",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "diagnosticoCompleto",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 7,
+    "dependencias": {
+      "modulos": [
+        "Logger"
+      ],
+      "apis": [
+        "Yahoo"
+      ],
+      "google": [
+        "SpreadsheetApp",
+        "CacheService"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 293,
+      "linhas_codigo": 213,
+      "complexidade_ciclomatica": 18,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "Logger.",
+        "CacheService.",
+        "PropertiesService."
+      ],
+      "ia_integracao": [
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 7 funções: clearLogs, runDiagnostics, monitorarRateLimits..."
+  },
+  "00_Utils.js": {
+    "nome_arquivo": "00_Utils.js",
+    "nome_modulo": "00_Utils",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "_wrapRange",
+        "parametros": [
+          "range"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_wrapSheet",
+        "parametros": [
+          "sheet"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_wrapSpreadsheet",
+        "parametros": [
+          "spreadsheet"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "QUOTA_TRACKER_REPORT",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "parseNumberBR_",
+        "parametros": [
+          "v"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "formatBRL_",
+        "parametros": [
+          "n"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "diagnosticarResumo",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "avaliarRompimentoSeguro",
+        "parametros": [
+          "precoAtual",
+          "bandaSuperior",
+          "volumeAtual",
+          "volumeMedio20",
+          "macdHistograma"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 8,
+    "dependencias": {
+      "modulos": [
+        "Ranker"
+      ],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 203,
+      "linhas_codigo": 182,
+      "complexidade_ciclomatica": 37,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "00_Utils.gs - Funções Globais de Suporte Resolve os erros: parseNumberBR_, formatBRL_ e diagnosticarResumo",
+      "todos": []
+    },
+    "resumo": "00_Utils.gs - Funções Globais de Suporte Resolve os erros: parseNumberBR_, formatBRL_ e diagnosticarResumo"
+  },
+  "01_Core_Config.js": {
+    "nome_arquivo": "01_Core_Config.js",
+    "nome_modulo": "01_Core_Config",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "parseValue",
+        "parametros": [
+          "value"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "readSheetConfig",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getCachedConfig",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "putCachedConfig",
+        "parametros": [
+          "configMap"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "isEnforcementActive",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "isBlockedSheetSecret",
+        "parametros": [
+          "key"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "readSecretFromProviders",
+        "parametros": [
+          "key"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 7,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 235,
+      "linhas_codigo": 200,
+      "complexidade_ciclomatica": 37,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "PropertiesService."
+      ],
+      "ia_integracao": [
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 01_Core_Config.gs   GESTOR UNIFICADO DE CONFIGURAÇÕES B3-v10 =============================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 01_Core_Config.gs   GESTOR UNIFICADO DE CONFIGURAÇÕES B3-v10 ============================================================="
+  },
+  "02_Core_Logger.js": {
+    "nome_arquivo": "02_Core_Logger.js",
+    "nome_modulo": "02_Core_Logger",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "_addBuffer",
+        "parametros": [
+          "level",
+          "modulo",
+          "mensagem"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "info",
+        "parametros": [
+          "modulo",
+          "mensagem"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "warn",
+        "parametros": [
+          "modulo",
+          "mensagem"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "error",
+        "parametros": [
+          "modulo",
+          "mensagem"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "debug",
+        "parametros": [
+          "modulo",
+          "mensagem"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "flush",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 6,
+    "dependencias": {
+      "modulos": [
+        "Logger"
+      ],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 93,
+      "linhas_codigo": 54,
+      "complexidade_ciclomatica": 7,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "Logger."
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 6 funções: _addBuffer, info, warn..."
+  },
+  "03_Cache_Unified.js": {
+    "nome_arquivo": "03_Cache_Unified.js",
+    "nome_modulo": "03_Cache_Unified",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "LIMPAR_CACHE_COMPLETO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "VERIFICAR_STATUS_CACHE",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 2,
+    "dependencias": {
+      "modulos": [],
+      "apis": [
+        "Yahoo"
+      ],
+      "google": [
+        "SpreadsheetApp",
+        "CacheService"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 125,
+      "linhas_codigo": 102,
+      "complexidade_ciclomatica": 3,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "CacheService."
+      ]
+    },
+    "documentacao": {
+      "descricao": "03_Cache_Unified.gs — V3.1 (MODULAR & SLIM) ============================================================================= Finalidade: Gestão centralizada de cache para evitar excesso de chamadas de AP",
+      "todos": []
+    },
+    "resumo": "03_Cache_Unified.gs — V3.1 (MODULAR & SLIM) ============================================================================= Finalidade: Gestão centralizada de cache para evitar excesso de chamadas de AP"
+  },
+  "04_Core_RateLimiter.js": {
+    "nome_arquivo": "04_Core_RateLimiter.js",
+    "nome_modulo": "04_Core_RateLimiter",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [
+        "Logger"
+      ],
+      "apis": [
+        "Brapi",
+        "Yahoo"
+      ],
+      "google": [
+        "CacheService"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 86,
+      "linhas_codigo": 70,
+      "complexidade_ciclomatica": 7,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "Logger.",
+        "Utilities.",
+        "CacheService."
+      ],
+      "ia_integracao": [
+        "deepseek",
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "// ===== 04_Core_RateLimiter.gs ===== // Gestor de Limites de API (Anti-Bloqueio e Controlo de Custos)",
+      "todos": []
+    },
+    "resumo": "// ===== 04_Core_RateLimiter.gs ===== // Gestor de Limites de API (Anti-Bloqueio e Controlo de Custos)"
+  },
+  "05_B3V10_TickerManager.js": {
+    "nome_arquivo": "05_B3V10_TickerManager.js",
+    "nome_modulo": "05_B3V10_TickerManager",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 78,
+      "linhas_codigo": 56,
+      "complexidade_ciclomatica": 2,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "============================================================================= 05_B3V10_TickerManager.gs — GESTOR CENTRALIZADO DE ATIVOS (FUSÃO ELITE 2026) =============================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 05_B3V10_TickerManager.gs — GESTOR CENTRALIZADO DE ATIVOS (FUSÃO ELITE 2026) ============================================="
+  },
+  "05_Data_Service.js": {
+    "nome_arquivo": "05_Data_Service.js",
+    "nome_modulo": "05_Data_Service",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "getMarketData",
+        "parametros": [
+          "ticker",
+          "interval",
+          "range"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getMarketContext",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getPrecosAtuaisEmLote",
+        "parametros": [
+          "tickersArray"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getPrecoAtual",
+        "parametros": [
+          "ticker"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "obterDados",
+        "parametros": [
+          "ticker",
+          "interval",
+          "range"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "VERIFICAR_M1_FALLBACK",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_PRECO_AO_VIVO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_BRAPI",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 8,
+    "dependencias": {
+      "modulos": [
+        "DataService"
+      ],
+      "apis": [
+        "Brapi",
+        "Yahoo"
+      ],
+      "google": [
+        "SpreadsheetApp",
+        "UrlFetchApp",
+        "CacheService"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 252,
+      "linhas_codigo": 185,
+      "complexidade_ciclomatica": 26,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "UrlFetchApp.",
+        "CacheService."
+      ]
+    },
+    "documentacao": {
+      "descricao": "05_Data_Service.gs — CAMADA DE DADOS UNIFICADA (v12.0 - SOMENTE BRAPI) ============================================================================= ✅ REMOVIDO: Yahoo Finance (401/403 bloqueado) ✅ PRI",
+      "todos": []
+    },
+    "resumo": "05_Data_Service.gs — CAMADA DE DADOS UNIFICADA (v12.0 - SOMENTE BRAPI) ============================================================================= ✅ REMOVIDO: Yahoo Finance (401/403 bloqueado) ✅ PRI"
+  },
+  "07_AI_Unified_Connector.js": {
+    "nome_arquivo": "07_AI_Unified_Connector.js",
+    "nome_modulo": "07_AI_Unified_Connector",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [
+      {
+        "nome": "TESTAR_DEEPSEEK",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_DEEPSEEK_ISOLADO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_CONEXAO_DEEPSEEK",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_FALLBACK",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 4,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "UrlFetchApp",
+        "CacheService"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 430,
+      "linhas_codigo": 305,
+      "complexidade_ciclomatica": 38,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp.",
+        "Utilities.",
+        "CacheService."
+      ],
+      "ia_integracao": [
+        "deepseek",
+        "gemini",
+        "AI_Unified"
+      ]
+    },
+    "documentacao": {
+      "descricao": "// 📦 MÓDULO/ARQUIVO: 07_AI_Unified_Connector.js // 🛠️  TECNOLOGIA: JAVASCRIPT // 📌  VERSÃO: 3.4 — DEEPSEEK + FALLBACK COMPLETO RESILIENTE /",
+      "todos": []
+    },
+    "resumo": "// 📦 MÓDULO/ARQUIVO: 07_AI_Unified_Connector.js // 🛠️  TECNOLOGIA: JAVASCRIPT // 📌  VERSÃO: 3.4 — DEEPSEEK + FALLBACK COMPLETO RESILIENTE /"
+  },
+  "08_AI_Ensemble.js": {
+    "nome_arquivo": "08_AI_Ensemble.js",
+    "nome_modulo": "08_AI_Ensemble",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [
+      {
+        "nome": "getEnhancedScore",
+        "parametros": [
+          "originalAnalysis"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "analyzeWithEnsemble",
+        "parametros": [
+          "technicalData"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getEnhancedScoresBatch",
+        "parametros": [
+          "lista"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "analisar",
+        "parametros": [
+          "prompt",
+          "dadosTecnicos = {}",
+          "macroRegime = \"NEUTRAL\""
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_ajustarPesosDinamicos",
+        "parametros": [
+          "gScore",
+          "dScore",
+          "adxValue"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_calcularSizingDinamico",
+        "parametros": [
+          "finalScore",
+          "gemini",
+          "deepseek",
+          "macroRegime"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_getGeminiAnalysis",
+        "parametros": [
+          "ticker",
+          "data"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_extractScore",
+        "parametros": [
+          "obj"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_findScoreValue",
+        "parametros": [
+          "data"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_normalizeScore",
+        "parametros": [
+          "val"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_extractTechScore",
+        "parametros": [
+          "data"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_safeParse",
+        "parametros": [
+          "text"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_scoreToDecision",
+        "parametros": [
+          "score"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "TESTAR_ENSEMBLE",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "DEBUG_AI_FAILURE",
+        "parametros": [
+          "ticker"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "geminiFalhou",
+        "parametros": [],
+        "tipo": "arrow/const",
+        "publica": true
+      },
+      {
+        "nome": "deepseekFalhou",
+        "parametros": [],
+        "tipo": "arrow/const",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 17,
+    "dependencias": {
+      "modulos": [
+        "Orchestrator"
+      ],
+      "apis": [],
+      "google": [
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 859,
+      "linhas_codigo": 673,
+      "complexidade_ciclomatica": 126,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp."
+      ],
+      "ia_integracao": [
+        "deepseek",
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "08_AI_Ensemble.js ============================================================================= CENTRAL DE INTELIGÊNCIA COLETIVA DE IA (UNIFICADO v10.0) ===============================================",
+      "todos": []
+    },
+    "resumo": "08_AI_Ensemble.js ============================================================================= CENTRAL DE INTELIGÊNCIA COLETIVA DE IA (UNIFICADO v10.0) ==============================================="
+  },
+  "08_Output_Unified.js": {
+    "nome_arquivo": "08_Output_Unified.js",
+    "nome_modulo": "08_Output_Unified",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "saveAnalysisResults",
+        "parametros": [
+          "lista"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_forceWrite",
+        "parametros": [
+          "lista"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_toRow",
+        "parametros": [
+          "op"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_formatSheetOptimized",
+        "parametros": [
+          "sheet",
+          "startRow",
+          "numRows",
+          "rowsSanitized"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_ensureSheet",
+        "parametros": [
+          "ss"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "CORRIGIR_FORMATACAO_AGORA",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 6,
+    "dependencias": {
+      "modulos": [
+        "Orchestrator",
+        "DataService"
+      ],
+      "apis": [
+        "Yahoo"
+      ],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 324,
+      "linhas_codigo": 221,
+      "complexidade_ciclomatica": 54,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ],
+      "fibonacci": [
+        "fibonacci",
+        "pivots?"
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 08_Output_Unified.gs — CENTRAL DE SAÍDA E RELATÓRIOS (v12.0 - MEMORY BUFFER) =============================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 08_Output_Unified.gs — CENTRAL DE SAÍDA E RELATÓRIOS (v12.0 - MEMORY BUFFER) ============================================="
+  },
+  "10_Data_YahooFetcher.js": {
+    "nome_arquivo": "10_Data_YahooFetcher.js",
+    "nome_modulo": "10_Data_YahooFetcher",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "_getRandomUserAgent",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_fetchWithRetry",
+        "parametros": [
+          "url",
+          "options = {}"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "getHistory",
+        "parametros": [
+          "ticker",
+          "interval = '1d'",
+          "range = '3mo'"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getQuoteBatchSmart",
+        "parametros": [
+          "tickers"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getQuoteBatchBrapi",
+        "parametros": [
+          "tickers"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getQuote",
+        "parametros": [
+          "ticker"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TEST_YahooFetcher",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 7,
+    "dependencias": {
+      "modulos": [],
+      "apis": [
+        "Brapi",
+        "Yahoo"
+      ],
+      "google": [
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 222,
+      "linhas_codigo": 178,
+      "complexidade_ciclomatica": 21,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp.",
+        "Utilities.",
+        "PropertiesService."
+      ],
+      "apis_financeiras": [
+        "query1.finance.yahoo.com"
+      ]
+    },
+    "documentacao": {
+      "descricao": "Executa um teste completo das funcionalidades do módulo YahooFetcher. Valida a conexão com o Yahoo e o fallback automático para BRAPI.",
+      "todos": []
+    },
+    "resumo": "Executa um teste completo das funcionalidades do módulo YahooFetcher. Valida a conexão com o Yahoo e o fallback automático para BRAPI."
+  },
+  "11_Data_AlphaVantageFetcher.js": {
+    "nome_arquivo": "11_Data_AlphaVantageFetcher.js",
+    "nome_modulo": "11_Data_AlphaVantageFetcher",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "_getApiKey",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_fetchWithRetry",
+        "parametros": [
+          "url",
+          "options",
+          "bucketName"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "getHistory",
+        "parametros": [
+          "ticker",
+          "interval = 'daily'",
+          "outputsize = 'compact'"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getQuoteBatch",
+        "parametros": [
+          "tickers"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getQuote",
+        "parametros": [
+          "ticker"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 5,
+    "dependencias": {
+      "modulos": [],
+      "apis": [
+        "Brapi",
+        "Yahoo"
+      ],
+      "google": [
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 162,
+      "linhas_codigo": 141,
+      "complexidade_ciclomatica": 19,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp.",
+        "Utilities."
+      ]
+    },
+    "documentacao": {
+      "descricao": "11_Data_AlphaVantageFetcher.js — Provedor de Dados Alpha Vantage (v1.0) ============================================================================= ✅ Nova fonte de dados para histórico e cotações. ✅",
+      "todos": []
+    },
+    "resumo": "11_Data_AlphaVantageFetcher.js — Provedor de Dados Alpha Vantage (v1.0) ============================================================================= ✅ Nova fonte de dados para histórico e cotações. ✅"
+  },
+  "12_Indicators_Volume.js": {
+    "nome_arquivo": "12_Indicators_Volume.js",
+    "nome_modulo": "12_Indicators_Volume",
+    "categoria": "technical_indicators",
+    "responsabilidade": "Indicadores Técnicos",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 77,
+      "linhas_codigo": 62,
+      "complexidade_ciclomatica": 10,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "12_Indicators_Volume.gs — V10.0 (REFATORAÇÃO MODULAR) ============================================================================= Finalidade: Cálculos avançados de Volume e Fluxo de Dinheiro. Refato",
+      "todos": []
+    },
+    "resumo": "12_Indicators_Volume.gs — V10.0 (REFATORAÇÃO MODULAR) ============================================================================= Finalidade: Cálculos avançados de Volume e Fluxo de Dinheiro. Refato"
+  },
+  "13_Indicators_RelativeStrength.js": {
+    "nome_arquivo": "13_Indicators_RelativeStrength.js",
+    "nome_modulo": "13_Indicators_RelativeStrength",
+    "categoria": "technical_indicators",
+    "responsabilidade": "Indicadores Técnicos",
+    "funcoes": [
+      {
+        "nome": "calculateRS",
+        "parametros": [
+          "ticker",
+          "benchmarkTicker",
+          "period",
+          "dataPeriod",
+          "interval"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [],
+      "apis": [
+        "Yahoo"
+      ],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 41,
+      "linhas_codigo": 29,
+      "complexidade_ciclomatica": 1,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 1 funções: calculateRS..."
+  },
+  "14_Dashboard_PainelMercado.js": {
+    "nome_arquivo": "14_Dashboard_PainelMercado.js",
+    "nome_modulo": "14_Dashboard_PainelMercado",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [
+      {
+        "nome": "_parseNum",
+        "parametros": [
+          "val"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "updateDashboardCompleto",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_drawComparisonBlock",
+        "parametros": [
+          "dash",
+          "startRow"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_drawWinRateChart",
+        "parametros": [
+          "dash",
+          "startRow"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_getRealStats",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_getSimStats",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "ATUALIZAR_DASHBOARD",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "calcAvg",
+        "parametros": [
+          "list"
+        ],
+        "tipo": "arrow/const",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 8,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 264,
+      "linhas_codigo": 190,
+      "complexidade_ciclomatica": 20,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "14_Dashboard_PainelMercado.gs — v14.1 (REFACTORED: PERFORMANCE FIX) ============================================================================= ✅ GESTÃO: Adicionado Bloco de Saúde da Carteira (Lucro",
+      "todos": []
+    },
+    "resumo": "14_Dashboard_PainelMercado.gs — v14.1 (REFACTORED: PERFORMANCE FIX) ============================================================================= ✅ GESTÃO: Adicionado Bloco de Saúde da Carteira (Lucro"
+  },
+  "15_AI_Agentic_Enricher.js": {
+    "nome_arquivo": "15_AI_Agentic_Enricher.js",
+    "nome_modulo": "15_AI_Agentic_Enricher",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 138,
+      "linhas_codigo": 109,
+      "complexidade_ciclomatica": 11,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp."
+      ],
+      "ia_integracao": [
+        "gemini",
+        "AgenticEnricher"
+      ]
+    },
+    "documentacao": {
+      "descricao": "15_AIAgenticEnricher.gs — v7.0 (INTEGRAÇÃO TOTAL COM CONFIG) ============================================================================= ✅ DINÂMICO: Busca Modelo, Score Mínimo e Chaves via CONFIG.ge",
+      "todos": []
+    },
+    "resumo": "15_AIAgenticEnricher.gs — v7.0 (INTEGRAÇÃO TOTAL COM CONFIG) ============================================================================= ✅ DINÂMICO: Busca Modelo, Score Mínimo e Chaves via CONFIG.ge"
+  },
+  "17_Notification_Manager.js": {
+    "nome_arquivo": "17_Notification_Manager.js",
+    "nome_modulo": "17_Notification_Manager",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "dispararRelatorioDiario",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_getConfigSecret",
+        "parametros": [
+          "key"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_enviarTelegram",
+        "parametros": [
+          "token",
+          "chatId",
+          "pat",
+          "luc",
+          "urgentes"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_enviarGmail",
+        "parametros": [
+          "email",
+          "pat",
+          "luc",
+          "urgentes",
+          "mantidos"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_formatBRL",
+        "parametros": [
+          "val"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "enviarAlertaRisco",
+        "parametros": [
+          "mensagem"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "EXECUTAR_NOTIFICACAO_DIARIA",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 7,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp",
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 241,
+      "linhas_codigo": 187,
+      "complexidade_ciclomatica": 13,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "UrlFetchApp."
+      ],
+      "telegram": [
+        "api.telegram.org",
+        "sendMessage"
+      ]
+    },
+    "documentacao": {
+      "descricao": "17_Notification_Manager.gs — v7.6 (INTELLIGENCE & AGENTIC) ============================================================================= ✅ RÓTULOS: Alterado de \"P/L\" para \"LUCRO ATUAL\" para evitar con",
+      "todos": []
+    },
+    "resumo": "17_Notification_Manager.gs — v7.6 (INTELLIGENCE & AGENTIC) ============================================================================= ✅ RÓTULOS: Alterado de \"P/L\" para \"LUCRO ATUAL\" para evitar con"
+  },
+  "20_Compliance_Unified.js": {
+    "nome_arquivo": "20_Compliance_Unified.js",
+    "nome_modulo": "20_Compliance_Unified",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "COMPLIANCE_CHECK",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "verificarHorarioOperacional",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 2,
+    "dependencias": {
+      "modulos": [
+        "Orchestrator"
+      ],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 96,
+      "linhas_codigo": 74,
+      "complexidade_ciclomatica": 11,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "20_Compliance_Unified.gs — V5.0 (MODULAR & SNIPER COMPLIANT) ============================================================================= Finalidade: Guardião de regras, horários e travas de risco. R",
+      "todos": []
+    },
+    "resumo": "20_Compliance_Unified.gs — V5.0 (MODULAR & SNIPER COMPLIANT) ============================================================================= Finalidade: Guardião de regras, horários e travas de risco. R"
+  },
+  "21_Tax_Calculator.js": {
+    "nome_arquivo": "21_Tax_Calculator.js",
+    "nome_modulo": "21_Tax_Calculator",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "EXECUTAR_CALCULO_FISCAL",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 324,
+      "linhas_codigo": 242,
+      "complexidade_ciclomatica": 44,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 21_Tax_Calculator.gs — MOTOR CONTÁBIL & DISTRIBUIDOR FISCAL (V3.1) =======================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 21_Tax_Calculator.gs — MOTOR CONTÁBIL & DISTRIBUIDOR FISCAL (V3.1) ======================================================="
+  },
+  "22_Core_Analyzers.js": {
+    "nome_arquivo": "22_Core_Analyzers.js",
+    "nome_modulo": "22_Core_Analyzers",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "STRATEGY_EVALUATE_CORE",
+        "parametros": [
+          "data",
+          "ibovContext"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_obterContextoPrecos",
+        "parametros": [
+          "candles"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_calcularIndicadoresTecnicos",
+        "parametros": [
+          "candles",
+          "closes"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_analisarEstruturaMercado",
+        "parametros": [
+          "ctx",
+          "preco",
+          "ind",
+          "candles"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_processarGestaoRisco",
+        "parametros": [
+          "preco",
+          "atr",
+          "estrutura",
+          "candles",
+          "closes"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_selecionarAlvo",
+        "parametros": [
+          "niveisDisponiveis",
+          "precoAtual",
+          "stopDist",
+          "minRR"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_identificarSetup",
+        "parametros": [
+          "rr",
+          "inFibo",
+          "score",
+          "preco",
+          "ind",
+          "risco"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getATR",
+        "parametros": [
+          "candles",
+          "period"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getEMA",
+        "parametros": [
+          "values",
+          "period"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getRSI",
+        "parametros": [
+          "values",
+          "period"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getVWMA",
+        "parametros": [
+          "candles",
+          "period"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getADX",
+        "parametros": [
+          "candles",
+          "period"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "wilderSmooth",
+        "parametros": [
+          "arr"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_core_getBollinger",
+        "parametros": [
+          "closes",
+          "period",
+          "mult"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getLogReturns",
+        "parametros": [
+          "closes"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getMedian",
+        "parametros": [
+          "arr"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getRobustSigma",
+        "parametros": [
+          "arr"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_estimarRuidoEstatistico",
+        "parametros": [
+          "candles",
+          "closes",
+          "period"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_noisePrice",
+        "parametros": [
+          "preco",
+          "atr",
+          "candles",
+          "closes"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_detectPivotLows",
+        "parametros": [
+          "candles",
+          "leftBars",
+          "rightBars"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getLastPivotLow",
+        "parametros": [
+          "candles",
+          "lookback",
+          "leftBars",
+          "rightBars"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_core_getVolumeRelativo",
+        "parametros": [
+          "candles",
+          "period"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "DIAGNOSTICAR_INDICADORES",
+        "parametros": [
+          "ticker"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_FUNCAO_CORE",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "LIMPAR_CACHE_E_TESTAR",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 25,
+    "dependencias": {
+      "modulos": [
+        "DataService"
+      ],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 1003,
+      "linhas_codigo": 753,
+      "complexidade_ciclomatica": 204,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "PropertiesService."
+      ],
+      "fibonacci": [
+        "fibonacci",
+        "pivots?"
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 25 funções: STRATEGY_EVALUATE_CORE, _obterContextoPrecos, _calcularIndicadoresTecnicos..."
+  },
+  "23_Pivot_Fibonacci.js": {
+    "nome_arquivo": "23_Pivot_Fibonacci.js",
+    "nome_modulo": "23_Pivot_Fibonacci",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "calculateClassicPivotPoints",
+        "parametros": [
+          "high",
+          "low",
+          "close"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "calculateWoodiePivotPoints",
+        "parametros": [
+          "high",
+          "low",
+          "close"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "calculateCamarillaPivotPoints",
+        "parametros": [
+          "high",
+          "low",
+          "close"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "detectSwingPoints",
+        "parametros": [
+          "candles",
+          "lookback = 20"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "calculateAllFibonacciLevels",
+        "parametros": [
+          "swingHigh",
+          "swingLow"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "completeAnalysis",
+        "parametros": [
+          "candles"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 6,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 147,
+      "linhas_codigo": 103,
+      "complexidade_ciclomatica": 8,
+      "num_todos": 0
+    },
+    "padroes": {
+      "fibonacci": [
+        "fibonacci",
+        "pivots?"
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 23_Pivot_Fibonacci.gs — Indicadores de Pivô e Fibonacci (OTIMIZADO) ======================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 23_Pivot_Fibonacci.gs — Indicadores de Pivô e Fibonacci (OTIMIZADO) ======================================================"
+  },
+  "24_Secrets_Manager.js": {
+    "nome_arquivo": "24_Secrets_Manager.js",
+    "nome_modulo": "24_Secrets_Manager",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "getSecrets",
+        "parametros": [
+          "secretNames"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getSecret",
+        "parametros": [
+          "name"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getProjectId",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "fetchFromGcp",
+        "parametros": [
+          "projectId",
+          "secretNames"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "fetchFromScriptProperties",
+        "parametros": [
+          "secretNames"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 5,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 119,
+      "linhas_codigo": 100,
+      "complexidade_ciclomatica": 14,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp.",
+        "Utilities.",
+        "PropertiesService.",
+        "ScriptApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 24_Secrets_Manager.gs — Gestão Avançada de Chaves (GCP + Fallback) =======================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 24_Secrets_Manager.gs — Gestão Avançada de Chaves (GCP + Fallback) ======================================================="
+  },
+  "25_Fundamentalist_Engine.js": {
+    "nome_arquivo": "25_Fundamentalist_Engine.js",
+    "nome_modulo": "25_Fundamentalist_Engine",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "getValuationBonus",
+        "parametros": [
+          "ticker"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [],
+      "apis": [
+        "Yahoo"
+      ],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 33,
+      "linhas_codigo": 24,
+      "complexidade_ciclomatica": 9,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "25_Fundamentalist_Engine.gs Especialista em Valuation e Margem de Segurança",
+      "todos": []
+    },
+    "resumo": "25_Fundamentalist_Engine.gs Especialista em Valuation e Margem de Segurança"
+  },
+  "26_Data_BrapiFetcher.js": {
+    "nome_arquivo": "26_Data_BrapiFetcher.js",
+    "nome_modulo": "26_Data_BrapiFetcher",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "_getToken",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_waitIfNeeded",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_fetchWithCache",
+        "parametros": [
+          "key",
+          "url",
+          "ttl",
+          "isBatch = false"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "fetchHistory",
+        "parametros": [
+          "ticker",
+          "attempt = 1"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getQuoteBatch",
+        "parametros": [
+          "tickers"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_TICKER_BRAPI",
+        "parametros": [
+          "ticker"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 6,
+    "dependencias": {
+      "modulos": [],
+      "apis": [
+        "Brapi"
+      ],
+      "google": [
+        "UrlFetchApp",
+        "CacheService"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 145,
+      "linhas_codigo": 123,
+      "complexidade_ciclomatica": 21,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp.",
+        "Utilities.",
+        "CacheService."
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 6 funções: _getToken, _waitIfNeeded, _fetchWithCache..."
+  },
+  "27_Abas_Cabecalhos.js": {
+    "nome_arquivo": "27_Abas_Cabecalhos.js",
+    "nome_modulo": "27_Abas_Cabecalhos",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "colToLetter_",
+        "parametros": [
+          "col"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "relacionarAbasDetalhado",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "criarRelatorioComoTexto",
+        "parametros": [
+          "abaIndice",
+          "relatorioFormulas",
+          "relatorioCabecalhos"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "exportarFormulasComoCSV",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "GERAR_RELATORIO_TEXTO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "EXPORTAR_FORMULAS_CSV",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 6,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 291,
+      "linhas_codigo": 230,
+      "complexidade_ciclomatica": 35,
+      "num_todos": 1
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "27_Abas_Cabecalhos.gs - Versão com Fórmulas como Texto EXIBE: - Todas as fórmulas como TEXTO PLANO (não executáveis) - Links também como texto (opcional)",
+      "todos": []
+    },
+    "resumo": "27_Abas_Cabecalhos.gs - Versão com Fórmulas como Texto EXIBE: - Todas as fórmulas como TEXTO PLANO (não executáveis) - Links também como texto (opcional)"
+  },
+  "28_ativarEnforcement.js": {
+    "nome_arquivo": "28_ativarEnforcement.js",
+    "nome_modulo": "28_ativarEnforcement",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "ativarEnforcementProducao",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "executarAnaliseReal",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "configurarProducao",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "planoEmergenciaEnforcement",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 4,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 98,
+      "linhas_codigo": 60,
+      "complexidade_ciclomatica": 1,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "PropertiesService."
+      ],
+      "ia_integracao": [
+        "deepseek",
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 4 funções: ativarEnforcementProducao, executarAnaliseReal, configurarProducao..."
+  },
+  "29_Oportunidades_Processor.js": {
+    "nome_arquivo": "29_Oportunidades_Processor.js",
+    "nome_modulo": "29_Oportunidades_Processor",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "PROCESSAR_OPORTUNIDADES_FINAL",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 228,
+      "linhas_codigo": 170,
+      "complexidade_ciclomatica": 15,
+      "num_todos": 1
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ],
+      "fibonacci": [
+        "fibonacci",
+        "pivots?"
+      ]
+    },
+    "documentacao": {
+      "descricao": "29_Oportunidades_Processor.gs — V4.0 (ENCAPSULATED & CLEAN) ============================================================================= ✅ RESPONSABILIDADE: Ler \"Resultados_Analise\", consolidar por T",
+      "todos": []
+    },
+    "resumo": "29_Oportunidades_Processor.gs — V4.0 (ENCAPSULATED & CLEAN) ============================================================================= ✅ RESPONSABILIDADE: Ler \"Resultados_Analise\", consolidar por T"
+  },
+  "30_DARF_Generator.js": {
+    "nome_arquivo": "30_DARF_Generator.js",
+    "nome_modulo": "30_DARF_Generator",
+    "categoria": "trading_logic",
+    "responsabilidade": "Lógica de Trading",
+    "funcoes": [
+      {
+        "nome": "emitirGuiaMensal",
+        "parametros": [
+          "mes",
+          "ano"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "enviarDarfPorEmail",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_isPrimeiroDiaUtil",
+        "parametros": [
+          "data"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_exibirModal",
+        "parametros": [
+          "html",
+          "titulo",
+          "w",
+          "h"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "MENU_FISCAL_CALCULAR_MES_ANTERIOR",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_FISCAL_RECALCULAR_TUDO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "ENVIAR_DARF_MENSAL_AUTOMATICO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 7,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 199,
+      "linhas_codigo": 157,
+      "complexidade_ciclomatica": 21,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 30_DARF_Generator.gs — PAINEL FISCAL & INTERFACE (V2.1) ==================================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 30_DARF_Generator.gs — PAINEL FISCAL & INTERFACE (V2.1) =================================================================="
+  },
+  "30_Portfolio_Unified.js": {
+    "nome_arquivo": "30_Portfolio_Unified.js",
+    "nome_modulo": "30_Portfolio_Unified",
+    "categoria": "trading_logic",
+    "responsabilidade": "Lógica de Trading",
+    "funcoes": [
+      {
+        "nome": "syncPortfolio",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [
+        "DataService"
+      ],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 92,
+      "linhas_codigo": 61,
+      "complexidade_ciclomatica": 14,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 1 funções: syncPortfolio..."
+  },
+  "31_Portfolio_Rebalancer.js": {
+    "nome_arquivo": "31_Portfolio_Rebalancer.js",
+    "nome_modulo": "31_Portfolio_Rebalancer",
+    "categoria": "trading_logic",
+    "responsabilidade": "Lógica de Trading",
+    "funcoes": [
+      {
+        "nome": "EXECUTAR_SINCRONIZACAO_CARTEIRAS",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getSheetRobust",
+        "parametros": [
+          "name"
+        ],
+        "tipo": "arrow/const",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 2,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 151,
+      "linhas_codigo": 113,
+      "complexidade_ciclomatica": 17,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "31_Portfolio_Rebalancer.gs — v6.0 (SINCRONIA TOTAL DE ALVOS E STOPS) ============================================================================= Finalidade: Cruzar a Carteira Real com a Recomendada ",
+      "todos": []
+    },
+    "resumo": "31_Portfolio_Rebalancer.gs — v6.0 (SINCRONIA TOTAL DE ALVOS E STOPS) ============================================================================= Finalidade: Cruzar a Carteira Real com a Recomendada "
+  },
+  "32_Automacao_Setup.js": {
+    "nome_arquivo": "32_Automacao_Setup.js",
+    "nome_modulo": "32_Automacao_Setup",
+    "categoria": "config_setup",
+    "responsabilidade": "Configuração",
+    "funcoes": [
+      {
+        "nome": "instalarAutomacao",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "desinstalarAutomacao",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 2,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 64,
+      "linhas_codigo": 42,
+      "complexidade_ciclomatica": 1,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "ScriptApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 32_Automacao_Setup.gs — O MAESTRO DA AUTOMAÇÃO B3-v10 ====================================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 32_Automacao_Setup.gs — O MAESTRO DA AUTOMAÇÃO B3-v10 ===================================================================="
+  },
+  "33_Data_SheetManager.js": {
+    "nome_arquivo": "33_Data_SheetManager.js",
+    "nome_modulo": "33_Data_SheetManager",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "findVal",
+        "parametros": [
+          "options"
+        ],
+        "tipo": "arrow/const",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 109,
+      "linhas_codigo": 70,
+      "complexidade_ciclomatica": 12,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ],
+      "fibonacci": [
+        "fibonacci",
+        "pivots?"
+      ]
+    },
+    "documentacao": {
+      "descricao": "Aplica regras de cores baseadas no Setup para facilitar a leitura rápida",
+      "todos": []
+    },
+    "resumo": "Aplica regras de cores baseadas no Setup para facilitar a leitura rápida"
+  },
+  "34_AI_Logic.js": {
+    "nome_arquivo": "34_AI_Logic.js",
+    "nome_modulo": "34_AI_Logic",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 172,
+      "linhas_codigo": 121,
+      "complexidade_ciclomatica": 16,
+      "num_todos": 0
+    },
+    "padroes": {
+      "ia_integracao": [
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Sem descrição detectada."
+  },
+  "34_AI_Prompts.js": {
+    "nome_arquivo": "34_AI_Prompts.js",
+    "nome_modulo": "34_AI_Prompts",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [
+      {
+        "nome": "criarConfiguracaoPadrao",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "criarTestesCalibracao",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 2,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 75,
+      "linhas_codigo": 72,
+      "complexidade_ciclomatica": 0,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "============================================================================= 34_AI_Prompts.gs — Configurações, Constantes e Estado ====================================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 34_AI_Prompts.gs — Configurações, Constantes e Estado ===================================================================="
+  },
+  "34_AI_Service.js": {
+    "nome_arquivo": "34_AI_Service.js",
+    "nome_modulo": "34_AI_Service",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 131,
+      "linhas_codigo": 98,
+      "complexidade_ciclomatica": 21,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "34_AI_Service.gs — V6.1 (ORQUESTRAÇÃO MODULAR + ADX + BOLLINGER) ============================================================================= Finalidade: Controlador central de Inteligência e Diagnós",
+      "todos": []
+    },
+    "resumo": "34_AI_Service.gs — V6.1 (ORQUESTRAÇÃO MODULAR + ADX + BOLLINGER) ============================================================================= Finalidade: Controlador central de Inteligência e Diagnós"
+  },
+  "34_DecisionEngine.js": {
+    "nome_arquivo": "34_DecisionEngine.js",
+    "nome_modulo": "34_DecisionEngine",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [
+      {
+        "nome": "_cfg",
+        "parametros": [
+          "key",
+          "fallback"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_clampScore",
+        "parametros": [
+          "value"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_normalizeSentiment",
+        "parametros": [
+          "raw"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_sentimentBonus",
+        "parametros": [
+          "sentiment"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_contains",
+        "parametros": [
+          "list",
+          "value"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_threshold",
+        "parametros": [
+          "options",
+          "flexApplied"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_reject",
+        "parametros": [
+          "ctx",
+          "reason",
+          "score",
+          "sentiment",
+          "stage"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "evaluate",
+        "parametros": [
+          "input"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 8,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 263,
+      "linhas_codigo": 222,
+      "complexidade_ciclomatica": 38,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 8 funções: _cfg, _clampScore, _normalizeSentiment..."
+  },
+  "35_Agent_Orchestrator.js": {
+    "nome_arquivo": "35_Agent_Orchestrator.js",
+    "nome_modulo": "35_Agent_Orchestrator",
+    "categoria": "core_orchestration",
+    "responsabilidade": "Orquestração Core",
+    "funcoes": [
+      {
+        "nome": "_cfg",
+        "parametros": [
+          "key",
+          "fallback"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_scoreMinimo",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_normalizeSentiment",
+        "parametros": [
+          "raw"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_calcularBonus",
+        "parametros": [
+          "canonical"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_consultarMemoria",
+        "parametros": [
+          "ticker",
+          "setupType"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_consultarAnalista",
+        "parametros": [
+          "ticker",
+          "op"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_consultarRisco",
+        "parametros": [
+          "op"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_getThreshold",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "processOpportunity",
+        "parametros": [
+          "op",
+          "macroRegime"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_rejeitarCom",
+        "parametros": [
+          "motivo",
+          "op",
+          "sentiment",
+          "score"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_log",
+        "parametros": [
+          "decisao",
+          "ticker",
+          "sentiment",
+          "scoreOriginal",
+          "scoreFinal",
+          "motivo"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "icone",
+        "parametros": [],
+        "tipo": "arrow/const",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 12,
+    "dependencias": {
+      "modulos": [
+        "Orchestrator"
+      ],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 212,
+      "linhas_codigo": 141,
+      "complexidade_ciclomatica": 26,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 12 funções: _cfg, _scoreMinimo, _normalizeSentiment..."
+  },
+  "36_Agent_Analyst.js": {
+    "nome_arquivo": "36_Agent_Analyst.js",
+    "nome_modulo": "36_Agent_Analyst",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [
+      {
+        "nome": "_sanitizarMemoria",
+        "parametros": [
+          "texto"
+        ],
+        "tipo": "function",
+        "publica": false
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 199,
+      "linhas_codigo": 130,
+      "complexidade_ciclomatica": 8,
+      "num_todos": 0
+    },
+    "padroes": {
+      "ia_integracao": [
+        "deepseek",
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 1 funções: _sanitizarMemoria..."
+  },
+  "37_Agent_RiskManager.js": {
+    "nome_arquivo": "37_Agent_RiskManager.js",
+    "nome_modulo": "37_Agent_RiskManager",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "_cfg",
+        "parametros": [
+          "key",
+          "fallback"
+        ],
+        "tipo": "function",
+        "publica": false
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 121,
+      "linhas_codigo": 94,
+      "complexidade_ciclomatica": 13,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "37_Agent_RiskManager.gs — GESTOR INTEGRADO DE RISCO E PORTFÓLIO V5.0 ============================================================================= ✅ PAPEL: Filtro final de decisão. Valida correlação, ",
+      "todos": []
+    },
+    "resumo": "37_Agent_RiskManager.gs — GESTOR INTEGRADO DE RISCO E PORTFÓLIO V5.0 ============================================================================= ✅ PAPEL: Filtro final de decisão. Valida correlação, "
+  },
+  "38_Agent_Memory.js": {
+    "nome_arquivo": "38_Agent_Memory.js",
+    "nome_modulo": "38_Agent_Memory",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [
+      {
+        "nome": "_cfg",
+        "parametros": [
+          "key",
+          "fallback"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "getContext",
+        "parametros": [
+          "ticker",
+          "setupType"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_classifyDrawdown",
+        "parametros": [
+          "winRate"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_getRecentPerformance",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_getTickerBias",
+        "parametros": [
+          "ticker"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_getTickerWinRate",
+        "parametros": [
+          "ticker"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "TESTAR_INTEGRACAO_MEMORIA",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 7,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 343,
+      "linhas_codigo": 233,
+      "complexidade_ciclomatica": 37,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 7 funções: _cfg, getContext, _classifyDrawdown..."
+  },
+  "39_Code_Scanner.js": {
+    "nome_arquivo": "39_Code_Scanner.js",
+    "nome_modulo": "39_Code_Scanner",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "validarChamadasLegadas",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getLegacyRules",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "inferGetHistory",
+        "parametros": [
+          "argsText"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "isInterval",
+        "parametros": [
+          "s"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "isRange",
+        "parametros": [
+          "s"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "strip",
+        "parametros": [
+          "s"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "writeReport",
+        "parametros": [
+          "rows"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "logSummary",
+        "parametros": [
+          "rows"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 8,
+    "dependencias": {
+      "modulos": [
+        "Logger"
+      ],
+      "apis": [
+        "Yahoo"
+      ],
+      "google": [
+        "SpreadsheetApp",
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 219,
+      "linhas_codigo": 191,
+      "complexidade_ciclomatica": 12,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "UrlFetchApp.",
+        "Logger.",
+        "ScriptApp."
+      ],
+      "apis_financeiras": [
+        "fetchQuote"
+      ]
+    },
+    "documentacao": {
+      "descricao": "Detecta automaticamente o uso de funções legadas (como fetchCandles) e sugere a migração para métodos modernos (getHistory), garantindo a evolução do sistema. [5]",
+      "todos": []
+    },
+    "resumo": "Detecta automaticamente o uso de funções legadas (como fetchCandles) e sugere a migração para métodos modernos (getHistory), garantindo a evolução do sistema. [5]"
+  },
+  "41_Ranker.js": {
+    "nome_arquivo": "41_Ranker.js",
+    "nome_modulo": "41_Ranker",
+    "categoria": "trading_logic",
+    "responsabilidade": "Lógica de Trading",
+    "funcoes": [
+      {
+        "nome": "PROCESSAR_CARTEIRA_FINAL",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_cfg",
+        "parametros": [
+          "key",
+          "fallback"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_determinarStatusPorSetup",
+        "parametros": [
+          "setup",
+          "score"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_escreverTabelaRanker",
+        "parametros": [
+          "ss",
+          "trades",
+          "sheetName"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_desenharGlossario",
+        "parametros": [
+          "sheet"
+        ],
+        "tipo": "function",
+        "publica": false
+      }
+    ],
+    "num_funcoes": 5,
+    "dependencias": {
+      "modulos": [
+        "Ranker"
+      ],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 332,
+      "linhas_codigo": 220,
+      "complexidade_ciclomatica": 47,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ],
+      "fibonacci": [
+        "fibonacci"
+      ]
+    },
+    "documentacao": {
+      "descricao": "✅ CORREÇÃO: Mapeamento de colunas sincronizado com o Módulo 08 (v10.7). ✅ FIX: R/R agora aponta para o Índice 9 (Coluna J), corrigindo o valor \"0\". ✅ INTEGRADO: Position Sizing baseado no Risco por Tr",
+      "todos": []
+    },
+    "resumo": "✅ CORREÇÃO: Mapeamento de colunas sincronizado com o Módulo 08 (v10.7). ✅ FIX: R/R agora aponta para o Índice 9 (Coluna J), corrigindo o valor \"0\". ✅ INTEGRADO: Position Sizing baseado no Risco por Tr"
+  },
+  "42_HistoricalContext.js": {
+    "nome_arquivo": "42_HistoricalContext.js",
+    "nome_modulo": "42_HistoricalContext",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp",
+        "CacheService"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 129,
+      "linhas_codigo": 82,
+      "complexidade_ciclomatica": 12,
+      "num_todos": 1
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "CacheService."
+      ]
+    },
+    "documentacao": {
+      "descricao": "42_HistoricalContext.gs",
+      "todos": []
+    },
+    "resumo": "42_HistoricalContext.gs"
+  },
+  "46_Debug_System.js": {
+    "nome_arquivo": "46_Debug_System.js",
+    "nome_modulo": "46_Debug_System",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "verificarSaudeSistema",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "debugarAtivo",
+        "parametros": [
+          "ticker = \"PETR4\""
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "gerarDadosMock",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "debugarCandles",
+        "parametros": [
+          "ticker = 'USIM5'"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 4,
+    "dependencias": {
+      "modulos": [
+        "DataService"
+      ],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 135,
+      "linhas_codigo": 104,
+      "complexidade_ciclomatica": 14,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "============================================================================= 46_Debug_System.gs — Diagnóstico Dedicado (Versão Core Analyzers) ========================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 46_Debug_System.gs — Diagnóstico Dedicado (Versão Core Analyzers) ========================================================"
+  },
+  "47_Automacao_Triggers.js": {
+    "nome_arquivo": "47_Automacao_Triggers.js",
+    "nome_modulo": "47_Automacao_Triggers",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "MENU_INSTALAR_AUTOMACAO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_DESATIVAR_AUTOMACAO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "realizarManutencaoMadrugada",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 3,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 121,
+      "linhas_codigo": 88,
+      "complexidade_ciclomatica": 5,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "PropertiesService.",
+        "ScriptApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 47_Automacao_Triggers.gs — GESTÃO AGÊNTICA DE GATILHOS (v12.0) ===========================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 47_Automacao_Triggers.gs — GESTÃO AGÊNTICA DE GATILHOS (v12.0) ==========================================================="
+  },
+  "48_Health_Check.js": {
+    "nome_arquivo": "48_Health_Check.js",
+    "nome_modulo": "48_Health_Check",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "enviarStatusSaudeSemanal",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 49,
+      "linhas_codigo": 40,
+      "complexidade_ciclomatica": 3,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "PropertiesService.",
+        "ScriptApp."
+      ],
+      "ia_integracao": [
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 48_Health_Check.gs — MONITOR DE INTEGRIDADE (v10) ========================================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 48_Health_Check.gs — MONITOR DE INTEGRIDADE (v10) ========================================================================"
+  },
+  "50_preMarketAnalysis.js": {
+    "nome_arquivo": "50_preMarketAnalysis.js",
+    "nome_modulo": "50_preMarketAnalysis",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "VISUALIZAR_MONITORAMENTO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "preMarketAnalysis_Inteligente",
+        "parametros": [
+          "forcarVisual = false"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "construirHtmlSniper",
+        "parametros": [
+          "analises",
+          "stats",
+          "sugestoes"
+        ],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 3,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 197,
+      "linhas_codigo": 157,
+      "complexidade_ciclomatica": 13,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 50_preMarketAnalysis.gs — v5.1 (SNIPER EDITION FIXED) ====================================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 50_preMarketAnalysis.gs — v5.1 (SNIPER EDITION FIXED) ===================================================================="
+  },
+  "51_SecureKeyService.js": {
+    "nome_arquivo": "51_SecureKeyService.js",
+    "nome_modulo": "51_SecureKeyService",
+    "categoria": "security",
+    "responsabilidade": "Segurança",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [],
+      "apis": [
+        "Brapi"
+      ],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 100,
+      "linhas_codigo": 81,
+      "complexidade_ciclomatica": 2,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "PropertiesService."
+      ],
+      "ia_integracao": [
+        "deepseek",
+        "gemini",
+        "openai"
+      ]
+    },
+    "documentacao": {
+      "descricao": "51_SecureKeyService.gs — v3.0 (DIAGNÓSTICO VISUAL) ============================================================================= ✅ CONEXÃO TOTAL: Lê as senhas das Propriedades do Script. ✅ RELATÓRIO H",
+      "todos": []
+    },
+    "resumo": "51_SecureKeyService.gs — v3.0 (DIAGNÓSTICO VISUAL) ============================================================================= ✅ CONEXÃO TOTAL: Lê as senhas das Propriedades do Script. ✅ RELATÓRIO H"
+  },
+  "51_Sentinela_Gringo.js": {
+    "nome_arquivo": "51_Sentinela_Gringo.js",
+    "nome_modulo": "51_Sentinela_Gringo",
+    "categoria": "security",
+    "responsabilidade": "Segurança",
+    "funcoes": [
+      {
+        "nome": "VISUALIZAR_SENTINELA_GRINGO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "RODAR_SENTINELA_AUTOMATICO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_YAHOO_BLOQUEIO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_SENTINELA_V8_DIRETO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 4,
+    "dependencias": {
+      "modulos": [
+        "Logger"
+      ],
+      "apis": [
+        "Yahoo"
+      ],
+      "google": [
+        "SpreadsheetApp",
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 265,
+      "linhas_codigo": 205,
+      "complexidade_ciclomatica": 18,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "UrlFetchApp.",
+        "Logger."
+      ],
+      "apis_financeiras": [
+        "query1.finance.yahoo.com"
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 51_Sentinela_Gringo.gs — v1.1 (ADR & PRE-MARKET MONITOR) =================================================================",
+      "todos": []
+    },
+    "resumo": "============================================================================= 51_Sentinela_Gringo.gs — v1.1 (ADR & PRE-MARKET MONITOR) ================================================================="
+  },
+  "52_Performance_Manager.js": {
+    "nome_arquivo": "52_Performance_Manager.js",
+    "nome_modulo": "52_Performance_Manager",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "converterParaNumero",
+        "parametros": [
+          "valor"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "encontrarIndiceColuna",
+        "parametros": [
+          "cabecalho",
+          "palavrasChave"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "lerNotas",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "identificarTrades",
+        "parametros": [
+          "operacoes"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "garantirAbaLog",
+        "parametros": [
+          "ss"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "escreverTradesDetalhados",
+        "parametros": [
+          "ss",
+          "trades"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "atualizarResumoEstatistico",
+        "parametros": [
+          "ss",
+          "trades"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "executar",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "ATUALIZAR_ESTATISTICAS",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_WINRATE_ROLLING_12M",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 10,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 335,
+      "linhas_codigo": 254,
+      "complexidade_ciclomatica": 33,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "Utilities."
+      ]
+    },
+    "documentacao": {
+      "descricao": "",
+      "todos": []
+    },
+    "resumo": "Módulo com 10 funções: converterParaNumero, encontrarIndiceColuna, lerNotas..."
+  },
+  "53_CandlePatternScanner.js": {
+    "nome_arquivo": "53_CandlePatternScanner.js",
+    "nome_modulo": "53_CandlePatternScanner",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 65,
+      "linhas_codigo": 46,
+      "complexidade_ciclomatica": 15,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "53_CandlePatternScanner.gs — Motor de Price Action B3 ============================================================================= ✅ AUTONOMIA: Detecta padrões de alta probabilidade para o mercado br",
+      "todos": []
+    },
+    "resumo": "53_CandlePatternScanner.gs — Motor de Price Action B3 ============================================================================= ✅ AUTONOMIA: Detecta padrões de alta probabilidade para o mercado br"
+  },
+  "54_Dashboard_Anual.js": {
+    "nome_arquivo": "54_Dashboard_Anual.js",
+    "nome_modulo": "54_Dashboard_Anual",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "GERAR_DASHBOARD_ANUAL",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 1,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 99,
+      "linhas_codigo": 67,
+      "complexidade_ciclomatica": 13,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "========================================================================= // 54_Dashboard_Anual.gs  --  MOTOR DE INTELIGÊNCIA: HISTÓRICO ANUAL (2019 - 2026) // ========================================",
+      "todos": []
+    },
+    "resumo": "========================================================================= // 54_Dashboard_Anual.gs  --  MOTOR DE INTELIGÊNCIA: HISTÓRICO ANUAL (2019 - 2026) // ========================================"
+  },
+  "55_AI_Ensemble.js": {
+    "nome_arquivo": "55_AI_Ensemble.js",
+    "nome_modulo": "55_AI_Ensemble",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [],
+    "num_funcoes": 0,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": []
+    },
+    "metricas": {
+      "linhas_total": 17,
+      "linhas_codigo": 15,
+      "complexidade_ciclomatica": 0,
+      "num_todos": 0
+    },
+    "padroes": {},
+    "documentacao": {
+      "descricao": "55_AI_Ensemble.js ============================================================================= PONTE DE COMPATIBILIDADE (UNIFICADO v10.0) =============================================================",
+      "todos": []
+    },
+    "resumo": "55_AI_Ensemble.js ============================================================================= PONTE DE COMPATIBILIDADE (UNIFICADO v10.0) ============================================================="
+  },
+  "56_MacroFetcher.js": {
+    "nome_arquivo": "56_MacroFetcher.js",
+    "nome_modulo": "56_MacroFetcher",
+    "categoria": "api_fetchers",
+    "responsabilidade": "APIs Externas",
+    "funcoes": [
+      {
+        "nome": "fetchJSONSafe",
+        "parametros": [
+          "url"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getSelic",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getDolar",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getEWZVariation",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "calcularRegime",
+        "parametros": [
+          "selic",
+          "ewzVar"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getMacroContext",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getRiskAdjustmentInternal",
+        "parametros": [
+          "regime"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getRiskAdjustment",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_MACRO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 9,
+    "dependencias": {
+      "modulos": [
+        "Orchestrator"
+      ],
+      "apis": [
+        "Yahoo"
+      ],
+      "google": [
+        "UrlFetchApp",
+        "CacheService"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 208,
+      "linhas_codigo": 141,
+      "complexidade_ciclomatica": 15,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp.",
+        "CacheService."
+      ],
+      "apis_financeiras": [
+        "query1.finance.yahoo.com"
+      ]
+    },
+    "documentacao": {
+      "descricao": "56_MacroFetcher.js — VERSÃO FINAL ESTÁVEL ------------------------------------------------------------- ✔ APIs confiáveis (BCB + Yahoo) ✔ Proteção contra XML / erro ✔ Regime unificado (NEUTRAL / BEARI",
+      "todos": []
+    },
+    "resumo": "56_MacroFetcher.js — VERSÃO FINAL ESTÁVEL ------------------------------------------------------------- ✔ APIs confiáveis (BCB + Yahoo) ✔ Proteção contra XML / erro ✔ Regime unificado (NEUTRAL / BEARI"
+  },
+  "57_Copilot_Webhook.js": {
+    "nome_arquivo": "57_Copilot_Webhook.js",
+    "nome_modulo": "57_Copilot_Webhook",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "consultarCopilot",
+        "parametros": [
+          "ticker",
+          "technicalData"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_COPILOT",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 2,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 91,
+      "linhas_codigo": 71,
+      "complexidade_ciclomatica": 6,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp.",
+        "PropertiesService."
+      ]
+    },
+    "documentacao": {
+      "descricao": "57_Copilot_Webhook.js — Integração com Copilot (CORRIGIDO) Versão 2.0 - Com validações de segurança",
+      "todos": []
+    },
+    "resumo": "57_Copilot_Webhook.js — Integração com Copilot (CORRIGIDO) Versão 2.0 - Com validações de segurança"
+  },
+  "58_AI_Monitor.js": {
+    "nome_arquivo": "58_AI_Monitor.js",
+    "nome_modulo": "58_AI_Monitor",
+    "categoria": "ai_analysis",
+    "responsabilidade": "Inteligência Artificial",
+    "funcoes": [
+      {
+        "nome": "MONITORAR_IA_STATUS",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "_checkGeminiStatus",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_checkMacroStatus",
+        "parametros": [],
+        "tipo": "function",
+        "publica": false
+      }
+    ],
+    "num_funcoes": 3,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 42,
+      "linhas_codigo": 34,
+      "complexidade_ciclomatica": 1,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ],
+      "ia_integracao": [
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "DASHBOARD DE MONITORAMENTO DAS IAs //58_AL_Monitor.gs",
+      "todos": []
+    },
+    "resumo": "DASHBOARD DE MONITORAMENTO DAS IAs //58_AL_Monitor.gs"
+  },
+  "59_Simulation_Manager.js": {
+    "nome_arquivo": "59_Simulation_Manager.js",
+    "nome_modulo": "59_Simulation_Manager",
+    "categoria": "data_management",
+    "responsabilidade": "Gestão de Dados",
+    "funcoes": [
+      {
+        "nome": "_buildEntryKey",
+        "parametros": [
+          "entry"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "_parseNumber",
+        "parametros": [
+          "value"
+        ],
+        "tipo": "function",
+        "publica": false
+      },
+      {
+        "nome": "registerEntries",
+        "parametros": [
+          "lista"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "monitorExits",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getGhostStatistics",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "houseKeeping",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_SISTEMA",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "MENU_TESTAR_SISTEMA_SIMULACAO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 8,
+    "dependencias": {
+      "modulos": [
+        "DataService"
+      ],
+      "apis": [
+        "Brapi"
+      ],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 221,
+      "linhas_codigo": 192,
+      "complexidade_ciclomatica": 22,
+      "num_todos": 1
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp."
+      ]
+    },
+    "documentacao": {
+      "descricao": "59_Simulation_Manager.gs — MOTOR DE PAPER TRADING (v1.0) ============================================================================= ✅ PAPEL: Simular a execução de TODOS os trades aprovados pelo Sen",
+      "todos": []
+    },
+    "resumo": "59_Simulation_Manager.gs — MOTOR DE PAPER TRADING (v1.0) ============================================================================= ✅ PAPEL: Simular a execução de TODOS os trades aprovados pelo Sen"
+  },
+  "99_Debug_Unified.js": {
+    "nome_arquivo": "99_Debug_Unified.js",
+    "nome_modulo": "99_Debug_Unified",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "time",
+        "parametros": [],
+        "tipo": "arrow/const",
+        "publica": true
+      },
+      {
+        "nome": "log",
+        "parametros": [
+          "texto"
+        ],
+        "tipo": "arrow/const",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 2,
+    "dependencias": {
+      "modulos": [
+        "DataService"
+      ],
+      "apis": [
+        "Yahoo"
+      ],
+      "google": [
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 123,
+      "linhas_codigo": 90,
+      "complexidade_ciclomatica": 10,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "UrlFetchApp."
+      ],
+      "apis_financeiras": [
+        "query1.finance.yahoo.com"
+      ]
+    },
+    "documentacao": {
+      "descricao": "============================================================================= 99_Debug_Unified.gs — v4.0 (LÓGICA PURA) ============================================================================= ⚠️ ",
+      "todos": []
+    },
+    "resumo": "============================================================================= 99_Debug_Unified.gs — v4.0 (LÓGICA PURA) ============================================================================= ⚠️ "
+  },
+  "TESTE_RapidAPI.js": {
+    "nome_arquivo": "TESTE_RapidAPI.js",
+    "nome_modulo": "TESTE_RapidAPI",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "TESTAR_CONEXAO_RAPIDAPI_DIRETO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "DIAGNOSTICO_BRAPI_YAHOO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 2,
+    "dependencias": {
+      "modulos": [],
+      "apis": [
+        "Brapi",
+        "Yahoo"
+      ],
+      "google": [
+        "SpreadsheetApp",
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 123,
+      "linhas_codigo": 97,
+      "complexidade_ciclomatica": 8,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "UrlFetchApp.",
+        "PropertiesService."
+      ],
+      "apis_financeiras": [
+        "query1.finance.yahoo.com"
+      ]
+    },
+    "documentacao": {
+      "descricao": "Função para validar a conexão com a RapidAPI. Use para verificar se o Host e a Key estão corretos sem precisar rodar o robô inteiro.",
+      "todos": []
+    },
+    "resumo": "Função para validar a conexão com a RapidAPI. Use para verificar se o Host e a Key estão corretos sem precisar rodar o robô inteiro."
+  },
+  "VerificarFunciona.js": {
+    "nome_arquivo": "VerificarFunciona.js",
+    "nome_modulo": "VerificarFunciona",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "VERIFICAR_MODULOS",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "SIMULAR_CENARIO_BULLISH_DEBUG",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTE_MACRO_PIPELINE",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "TESTAR_INTEGRACAO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "VERIFICAR_CORRECOES_ALTA_PRIORIDADE",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "setupLogPerformance",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "VERIFICAR_M2_VOLUME_FILTRO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "VERIFICAR_M3_ENCERRAMENTO_AUTO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "DIAGNOSTICO_BRAPI_YAHOO",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 9,
+    "dependencias": {
+      "modulos": [
+        "Orchestrator",
+        "DataService"
+      ],
+      "apis": [
+        "Brapi",
+        "Yahoo"
+      ],
+      "google": [
+        "SpreadsheetApp",
+        "UrlFetchApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 486,
+      "linhas_codigo": 352,
+      "complexidade_ciclomatica": 41,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "UrlFetchApp.",
+        "PropertiesService."
+      ],
+      "apis_financeiras": [
+        "query1.finance.yahoo.com"
+      ],
+      "ia_integracao": [
+        "gemini"
+      ]
+    },
+    "documentacao": {
+      "descricao": "🚀 SIMULAÇÃO ESTRATÉGICA: Cenário BULLISH Força o regime de mercado para BULLISH e ignora travas de horário para verificar a sensibilidade de aprovação do robô.",
+      "todos": []
+    },
+    "resumo": "🚀 SIMULAÇÃO ESTRATÉGICA: Cenário BULLISH Força o regime de mercado para BULLISH e ignora travas de horário para verificar a sensibilidade de aprovação do robô."
+  },
+  "WebApp.js": {
+    "nome_arquivo": "WebApp.js",
+    "nome_modulo": "WebApp",
+    "categoria": "utils",
+    "responsabilidade": "Utilitários",
+    "funcoes": [
+      {
+        "nome": "doGet",
+        "parametros": [
+          "e"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getDashboardData",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getPortfolioData",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "headerParaChave",
+        "parametros": [
+          "header"
+        ],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "executarRoboB3FromWeb",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      },
+      {
+        "nome": "getSentinelaData",
+        "parametros": [],
+        "tipo": "function",
+        "publica": true
+      }
+    ],
+    "num_funcoes": 6,
+    "dependencias": {
+      "modulos": [],
+      "apis": [],
+      "google": [
+        "SpreadsheetApp"
+      ]
+    },
+    "metricas": {
+      "linhas_total": 105,
+      "linhas_codigo": 90,
+      "complexidade_ciclomatica": 9,
+      "num_todos": 0
+    },
+    "padroes": {
+      "apps_script_services": [
+        "SpreadsheetApp.",
+        "Utilities."
+      ]
+    },
+    "documentacao": {
+      "descricao": "WebApp.js — Dashboard Sniper B3",
+      "todos": []
+    },
+    "resumo": "WebApp.js — Dashboard Sniper B3"
+  }
+}
