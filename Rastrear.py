@@ -7,12 +7,12 @@ from datetime import datetime
 
 # --- CONFIGURAÇÃO ---
 # ⚠️ IMPORTANTE: Eu removi sua chave por segurança. Coloque-a novamente abaixo.
-GEMINI_API_KEY = "AQ.Ab8RN6I_wd4Q5lCiqWNivAWOn5pXNf6xyHAy4pXwFt-tB8W-Sw" 
+GEMINI_API_KEY = "" 
 MODEL_NAME = "gemini-3.1-flash-lite" # Atualizei para um modelo mais recente/estável
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={GEMINI_API_KEY}"
 
 # Configuração do Apps Script
-APPS_SCRIPT_PROJECT_ID = "1cDeZdVZhr3HkcMugCov-HqCzjy4ws_MuvvEE9ViTzFFwc2RlFvCTQw6t"
+APPS_SCRIPT_PROJECT_ID = ""
 
 def call_gemini_api(prompt: str) -> str:
     """Chama a API Gemini via REST"""
