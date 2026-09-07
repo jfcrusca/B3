@@ -108,27 +108,56 @@ const OutputManager = (function () {
   // =========================================================================
   var precoOriginal = op.price || op.Preço || 0;
   var preco = precoOriginal;
+  var precoDeOverride = false;
+
+  // 🔧 v12.7: OVERRIDE MANUAL (Script Property PRECO_OVERRIDE_<TICKER>) — prioridade máxima
+  if (ticker && typeof DataService !== 'undefined' && typeof DataService.getPrecoOverride === 'function') {
+    var overridePreco = DataService.getPrecoOverride(ticker);
+    if (overridePreco && overridePreco > 0) {
+      preco = overridePreco;
+      precoDeOverride = true;
+      console.log("   🔧 Preço com override manual " + ticker + ": R$ " + preco.toFixed(2));
+    }
+  }
+
+  if (!precoDeOverride) {
+    // Prioridade 1: Preço ao vivo (se disponível)
+    if (op.livePrice && op.livePrice > 0) {
+      preco = op.livePrice;
+    }
+    // Prioridade 2: Preço do Yahoo (se disponível e diferente)
+    else if (op.yahooPrice && op.yahooPrice > 0 && Math.abs(op.yahooPrice - precoOriginal) > 0.01) {
+      preco = op.yahooPrice;
+      console.log("   🔄 Preço atualizado " + ticker + ": R$ " + precoOriginal + " → R$ " + preco);
+    }
+    // Prioridade 3: Tenta buscar cotação ao vivo agora
+    else if (typeof DataService !== 'undefined' && typeof DataService.getPrecoAtual === 'function' && ticker) {
+      try {
+        var quote = DataService.getPrecoAtual(ticker);
+        if (quote && quote.price && quote.price > 0) {
+          preco = quote.price;
+          console.log("   🔄 Preço ao vivo " + ticker + ": R$ " + preco);
+        }
+      } catch(e) { /* fallback para precoOriginal */ }
+    }
+  }
   
-  // Prioridade 1: Preço ao vivo (se disponível)
-  if (op.livePrice && op.livePrice > 0) {
-    preco = op.livePrice;
+  // 🔧 CORREÇÃO v12.7: DETECÇÃO DE DEFASAGEM ENTRE PREÇO EXIBIDO E PREÇO ANALISADO
+  // Se o preço final (cotação ao vivo) divergir mais de 15% do preço do candle usado
+  // na análise técnica (op.price), o setup/score provavelmente estão defasados.
+  // Sinalizamos no campo de alerta de segurança (coluna 'Alerta Segurança').
+  var alertaDivergenciaPreco = '';
+  if (!precoDeOverride && preco > 0 && precoOriginal > 0 && Math.abs(preco - precoOriginal) > 0.005) {
+    var diffPctPreco = Math.abs(preco - precoOriginal) / precoOriginal;
+    if (diffPctPreco > 0.15) {
+      alertaDivergenciaPreco = '🚨 Cotação ao vivo R$ ' + preco.toFixed(2) + ' diverge ' + (diffPctPreco * 100).toFixed(0) + '% do preço analisado R$ ' + precoOriginal.toFixed(2) + ' — análise possivelmente defasada';
+    }
   }
-  // Prioridade 2: Preço do Yahoo (se disponível e diferente)
-  else if (op.yahooPrice && op.yahooPrice > 0 && Math.abs(op.yahooPrice - precoOriginal) > 0.01) {
-    preco = op.yahooPrice;
-    console.log("   🔄 Preço atualizado " + ticker + ": R$ " + precoOriginal + " → R$ " + preco);
+  // Se a reconciliação do Orchestrator já marcou a divergência, preserva a mensagem original
+  if (!alertaDivergenciaPreco && op.alertaLive) {
+    alertaDivergenciaPreco = op.alertaLive;
   }
-  // Prioridade 3: Tenta buscar cotação ao vivo agora
-  else if (typeof DataService !== 'undefined' && typeof DataService.getPrecoAtual === 'function' && ticker) {
-    try {
-      var quote = DataService.getPrecoAtual(ticker);
-      if (quote && quote.price && quote.price > 0) {
-        preco = quote.price;
-        console.log("   🔄 Preço ao vivo " + ticker + ": R$ " + preco);
-      }
-    } catch(e) { /* fallback para precoOriginal */ }
-  }
-  
+
   // =========================================================================
   // 3. INDICADORES TÉCNICOS
   // =========================================================================
@@ -230,6 +259,11 @@ const OutputManager = (function () {
     tipoSetup = avaliacaoSegura.tagFinal;
     alertaMsg = avaliacaoSegura.alerta;
     alertaCor = avaliacaoSegura.corFundo;
+  }
+
+  // 🔧 CORREÇÃO v12.7: ANEXA ALERTA DE DEFASAGEM DE PREÇO AO ALERTA DE SEGURANÇA
+  if (alertaDivergenciaPreco) {
+    alertaMsg = (alertaMsg && alertaMsg !== '-') ? alertaMsg + ' | ' + alertaDivergenciaPreco : alertaDivergenciaPreco;
   }
 
 

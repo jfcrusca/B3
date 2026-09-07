@@ -147,11 +147,13 @@ var Bootstrap = (function () {
   // ... (Mantém as outras funções padrão: Tickers, Resultados, etc.) ...
   function setupResultadosAnalise(ss, opts) {
     const sh = ensureSheet(ss, 'Resultados_Analise');
+    // 🔧 CORREÇÃO v10.2: HEADER única alinhada com 08_Output_Unified (26 colunas).
     const headers = [
-      "Data", "Ticker", "Preço", "Score", "Setup", "Motivo", "Stop Loss", 
-      "Alvo 1", "Alvo 2", "R/R", "Risco %", "RSI", "EMA21", "EMA50", 
-      "EMA200", "ATR", "Volume", "Pivot", "Fibonacci", "Análise IA", 
-      "Ranking", "Tipo Setup", "Alerta Segurança"
+      "Data", "Ticker", "Preço", "Score", "Setup", "Motivo", "Stop Loss",
+      "Alvo 1", "Alvo 2", "R/R", "Risco %", "RSI", "EMA21", "EMA50",
+      "EMA200", "ATR", "Volume", "Pivot", "Fibonacci", "Análise IA",
+      "Ranking", "Tipo Setup", "Alerta Segurança",
+      "Topo50", "GanhoRapido%", "DistTopo%"
     ];
     setHeaders(sh, headers, opts);
     return sh;
@@ -189,6 +191,19 @@ var Bootstrap = (function () {
     return sh;
   }
 
+  /**
+   * 🔧 v13.3 (GOOGLEFINANCE): Aba auxiliar de cotações ao vivo.
+   * O `DataService.prepararAbaCotacoesLive()` a preenche com fórmulas
+   * `=GOOGLEFINANCE("<TICKER>"; "price")` para cada ativo monitorado.
+   * Aqui apenas garantimos que a aba e o cabeçalho existam.
+   */
+  function setupCotacoesLive(ss, opts) {
+    const sh = ensureSheet(ss, 'Cotacoes_Live');
+    const headers = ['Ticker', 'Preço Ao Vivo (GOOGLEFINANCE)'];
+    setHeaders(sh, headers, opts);
+    return sh;
+  }
+
   // ========== ENTRYPOINT ==========
 
   function createSheets(options) {
@@ -207,6 +222,7 @@ var Bootstrap = (function () {
     setupLogs(ss, opts);
     setupSimulation(ss, opts);
     setupSimulationLog(ss, opts);
+    setupCotacoesLive(ss, opts);      // <--- 🔧 v13.3 nova aba auxiliar
 
     // Abas auxiliares
     ensureSheet(ss, 'Tickers');

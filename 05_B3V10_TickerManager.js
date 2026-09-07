@@ -34,7 +34,14 @@ var B3V10_TICKER_MANAGER = (function() {
     "BTG11":  "Inativo / Fundo imobiliário encerrado (usar BPAC11 para BTG exposure)",
     "BRFS3":  "Alterado para MBRF3 (BRF mudou de ticker)",
     "AMER3":  "Inativo na base (Americanas sem dados de mercado)",
-    "PCAR3":  "Inativo (Pão de Açúcar sem dados de mercado disponíveis)"
+    "PCAR3":  "Inativo (Pão de Açúcar sem dados de mercado disponíveis)",
+    "ELET3":  "Alterado para AXIA3 (ações ordinárias)",
+    "ARZZ3":  "Alterado para AZZA3",
+    "BIDI11": "Alterado para INBR32",
+    "TRPL3":  "Alterado para ISAE3 (ISA Energia — ações ordinárias/ON)",
+    "TRPL4":  "Alterado para ISAE4 (ISA Energia — ações preferenciais/PN)",
+    "VIIA3":  "Alterado para BHIA3 (Via → BH)",
+    "JBSS3":  "Alterado para JBSS32 (BDR da JBS)"
   };
 
   // Substituições recomendadas para tickers mortos
@@ -47,9 +54,28 @@ var B3V10_TICKER_MANAGER = (function() {
     "ODPV3":  "HAPV3",   // Saúde substituído
     "KOF33":  null,      // Remover (sem substituto direto)
     "NEOE3":  null,      // Remover (sem substituto direto)
-    "MRFG3":  "JBSS3",   // Alimentos (mesmo setor)
+    "MRFG3":  "JBSS32",  // Alimentos (mesmo setor)
     "BTG11":  "BPAC11",  // BTG exposure via BPAC11 (já incluso)
-    "BRFS3":  "MBRF3"    // Código correto atualizado
+    "BRFS3":  "MBRF3",   // Código correto atualizado
+    "ELET3":  "AXIA3",   // Substituído por AXIA3 (Eletrobras)
+    "ARZZ3":  "AZZA3",   // Substituído por AZZA3 (Azzas)
+    "BIDI11": "INBR32",  // Inter migrou para BDR INBR32
+    "TRPL3":  "ISAE3",   // ISA Energia — ações ordinárias (ON)
+    "TRPL4":  "ISAE4",   // ISA Energia — ações preferenciais (PN)
+    "VIIA3":  "BHIA3",   // Via → BH
+    "JBSS3":  "JBSS32"   // BDR da JBS (código atual na B3)
+  };
+
+  // 🔧 v14.3: ALIASES — mapeia tickers alternativos/códigos antigos para o
+  // ticker canônico usado pelo sistema. Ex: JBSS3 (ação ordinária antiga) é
+  // convertido para JBSS32 (BDR da JBS, código atual na B3 desde jun/2025).
+  // O alias garante que fontes que retornem o código antigo sejam normalizadas.
+  var _tickerAliases = {
+    "JBSS3": "JBSS32",   // JBS migrou de ações ordinárias (JBSS3) para BDR (JBSS32)
+    "NBR32": "INBR32",   // Alias para facilidade de digitação/caso o usuário utilize
+    "TRPL3": "ISAE3",    // Transmissão Paulista ON → ISA Energia (ISAE3)
+    "TRPL4": "ISAE4",    // Transmissão Paulista PN → ISA Energia (ISAE4)
+    "VIIA3": "BHIA3"     // Via → BH (BHIA3)
   };
 
   // === LISTAS CONSOLIDADAS (Julho 2026) — Expandidas para ~80 tickers líquidos ===
@@ -60,7 +86,7 @@ var B3V10_TICKER_MANAGER = (function() {
     SAFETY: [
       "VALE3", "PETR4", "ITUB4", "BBAS3", "WEGE3",
       "ABEV3", "BBDC4", "BPAC11", "B3SA3", "SUZB3",
-      "ELET3", "VIVT3", "SBSP3", "EQTL3", "CSAN3"
+      "AXIA3", "VIVT3", "SBSP3", "EQTL3", "CSAN3"
     ],
     
     // ── Cíclicas: Commodities e Juros (Swing Trade Tático) ──
@@ -72,13 +98,13 @@ var B3V10_TICKER_MANAGER = (function() {
     // ── Growth/Vol: Beta Alto para Momentum ──
     GROWTH: [
       "RENT3", "MGLU3", "HYPE3", "RDOR3", "RADL3",
-      "LREN3", "ARZZ3", "POMO4", "TOTS3", "LOGG3",
+      "LREN3", "AZZA3", "POMO4", "TOTS3", "LOGG3",
       "CASH3", "NVDC34", "MELI34", "ALOS3"
     ],
     
     // ── Tactical: Setores Estáveis (Defensivo/Dividendos) ──
     TACTICAL: [
-      "CPLE3", "TAEE11", "TRPL4", "EGIE3", "ISAE4",
+      "CPLE3", "TAEE11", "ISAE4", "EGIE3",
       "SAPR11", "AURE3", "ENGI11"
     ],
     
@@ -90,14 +116,14 @@ var B3V10_TICKER_MANAGER = (function() {
     
     // ── Consumo: Varejo e Alimentos ──
     CONSUMER: [
-      "JBSS3", "SMTO3", "KLBN11", "MBRF3",
-      "VIIA3", "CEAB3", "AUAU3", " AUAU3", "VIVA3"
+      "JBSS32", "SMTO3", "KLBN11", "MBRF3",
+      "BHIA3", "CEAB3", "VIVA3"
     ],
     
     // ── Financeiro: Bancos e Serviços Financeiros ──
     FINANCIAL: [
       "SANB11", "ITSA4", "BRSR6", "BMGB4", "BBSE3",
-      "ROXO34", "XPBR31", "BIDI11"
+      "ROXO34", "XPBR31", "INBR32"
     ]
   };
 
@@ -117,6 +143,21 @@ var B3V10_TICKER_MANAGER = (function() {
       if (_tickerReplacements[ticker] !== undefined) return _tickerReplacements[ticker];
       if (this.isDeadTicker(ticker)) return null; // morto sem substituto
       return ticker; // ativo normal
+    },
+
+    /** 🔧 v14.3: Normaliza um ticker via alias (ex: JBSS3 -> JBSS32) para o ticker canônico.
+     *  Se não houver alias/arquivo regex, retorna o próprio ticker (upper case). */
+    resolveTicker: function(ticker) {
+      if (!ticker) return ticker;
+      var t = String(ticker).toUpperCase().replace(/\.SA$/, '').trim();
+      if (_tickerAliases[t]) return _tickerAliases[t];
+      return t;
+    },
+
+    /** 🔧 v14.3: Normaliza uma lista de tickers (aplica resolveTicker em cada um). */
+    resolveTickerList: function(tickers) {
+      if (!Array.isArray(tickers)) return tickers;
+      return tickers.map(function(t) { return this.resolveTicker(t); }, this);
     },
 
     /** 🚀 NOVO: Filtra tickers mortos de uma lista e loga os removidos */
@@ -180,11 +221,11 @@ var B3V10_TICKER_MANAGER = (function() {
         'SANB11':'Bancos', 'ITSA4':'Bancos', 'BRSR6':'Bancos', 'BMGB4':'Bancos',
         'BANB11':'Bancos', 'NUBR33':'Bancos',
         // Financeiro (não-bancos)
-        'B3SA3':'Financeiro', 'XPBR31':'Financeiro', 'BIDI11':'Financeiro',
+        'B3SA3':'Financeiro', 'XPBR31':'Financeiro', 'INBR32':'Financeiro', 'NBR32':'Financeiro',
         'BTG11':'Financeiro', 'KOF33':'Financeiro',
         // Elétrico / Saneamento
-        'SBSP3':'Saneamento', 'ELET3':'Elétrico', 'EQTL3':'Elétrico',
-        'CPLE3':'Elétrico', 'TAEE11':'Elétrico', 'TRPL4':'Elétrico',
+        'SBSP3':'Saneamento', 'AXIA3':'Elétrico', 'EQTL3':'Elétrico',
+        'CPLE3':'Elétrico', 'TAEE11':'Elétrico', 'ISAE3':'Elétrico',
         'EGIE3':'Elétrico', 'ISAE4':'Elétrico', 'SAPR11':'Elétrico',
         'NEOE3':'Elétrico', 'AURE3':'Elétrico', 'ENBR3':'Elétrico',
         'ENGI11':'Elétrico',
@@ -198,12 +239,12 @@ var B3V10_TICKER_MANAGER = (function() {
         'VIVT3':'Telecom', 'TOTS3':'Tecnologia', 'CASH3':'Tecnologia',
         'NVDC33':'Tecnologia', 'MELI34':'Tecnologia',
         // Consumo / Varejo / Alimentos
-        'ABEV3':'Consumo', 'JBSS3':'Alimentos', 'MRFG3':'Alimentos',
+        'ABEV3':'Consumo', 'JBSS32':'Alimentos', 'MRFG3':'Alimentos',
         'BRFS3':'Alimentos', 'SMTO3':'Consumo', 'KLBN11':'Papel e Celulose',
         'SUZB3':'Papel e Celulose', 'WEGE3':'Industrial', 'MGLU3':'Varejo',
-        'LREN3':'Varejo', 'ARZZ3':'Varejo', 'PCAR3':'Varejo',
-        'AMER3':'Varejo', 'VIIA3':'Varejo', 'CEAB3':'Varejo',
-        'AUAU3':'Varejo', ' AUAU3':'Varejo', 'VIVA3':'Varejo',
+        'LREN3':'Varejo', 'AZZA3':'Varejo', 'PCAR3':'Varejo',
+        'AMER3':'Varejo', 'BHIA3':'Varejo', 'CEAB3':'Varejo',
+        'VIVA3':'Varejo',
         // Locação / Logística / Transporte
         'RENT3':'Locação', 'RAIL3':'Logística', 'LZPS3':'Logística',
         'POMO4':'Construção',

@@ -30,6 +30,14 @@ var BrapiFetcher = (function() {
     _lastRequestTime = Date.now();
   }
 
+  // 🔧 v14.0: Integração com RateLimiter para controlar quota diária do BRAPI
+  function _withRateLimit(callback) {
+    if (typeof RateLimiter !== 'undefined' && typeof RateLimiter.execute === 'function') {
+      return RateLimiter.execute('BRAPI', callback);
+    }
+    return callback();
+  }
+
   /**
    * 🔧 NOVO: Verifica cache de falhas para evitar retentar APIs que estão fora
    */
@@ -71,7 +79,7 @@ var BrapiFetcher = (function() {
     }
 
     var url = 'https://brapi.dev/api/quote/' + cleanTicker + '?range=3mo&interval=1d&history=true&token=' + token;
-    var cacheKey = 'brapi_hist_' + cleanTicker;
+    var cacheKey = 'brapi_hist_v15_' + cleanTicker;
 
     // Tenta cache persistente primeiro
     var cache = CacheService.getScriptCache();
@@ -107,10 +115,13 @@ var BrapiFetcher = (function() {
     while (tentativas < maxTentativas && (Date.now() - inicioChamada) < CHAMADA_TIMEOUT_MS) {
       tentativas++;
       try {
-        var response = UrlFetchApp.fetch(url, { 
-          muteHttpExceptions: true,
-          connectTimeout: FETCH_TIMEOUT_MS,
-          readTimeout: FETCH_TIMEOUT_MS 
+        // 🔧 v14.0: Usa RateLimiter para controlar quota diária do BRAPI
+        var response = _withRateLimit(function() {
+          return UrlFetchApp.fetch(url, { 
+            muteHttpExceptions: true,
+            connectTimeout: FETCH_TIMEOUT_MS,
+            readTimeout: FETCH_TIMEOUT_MS 
+          });
         });
         var code = response.getResponseCode();
 
@@ -159,6 +170,12 @@ var BrapiFetcher = (function() {
           return null;
         }
       } catch (e) {
+        // Se o RateLimiter throws (quota esgotada), para de tentar
+        if (e.message && e.message.indexOf('Quota') !== -1) {
+          console.error('🚫 [Brapi] Quota diária esgotada. Parando tentativas para ' + cleanTicker);
+          _markFailure(cleanTicker);
+          return null;
+        }
         console.warn('⚠️ Erro fetch BRAPI ' + cleanTicker + ' (tentativa ' + tentativas + '): ' + e.message);
         if (tentativas < maxTentativas && (Date.now() - inicioChamada) < CHAMADA_TIMEOUT_MS) {
           Utilities.sleep(500);
@@ -205,10 +222,13 @@ var BrapiFetcher = (function() {
 
       try {
         _waitIfNeeded();
-        var response = UrlFetchApp.fetch(individualUrl, { 
-          muteHttpExceptions: true,
-          connectTimeout: FETCH_TIMEOUT_MS,
-          readTimeout: FETCH_TIMEOUT_MS 
+        // v14.0: Usa RateLimiter para controlar quota diaria do BRAPI
+        var response = _withRateLimit(function() {
+          return UrlFetchApp.fetch(individualUrl, { 
+            muteHttpExceptions: true,
+            connectTimeout: FETCH_TIMEOUT_MS,
+            readTimeout: FETCH_TIMEOUT_MS 
+          });
         });
 
         if (response.getResponseCode() === 200) {
@@ -237,6 +257,11 @@ var BrapiFetcher = (function() {
           console.warn('❌ BRAPI falhou para ' + t + ' HTTP ' + response.getResponseCode());
         }
       } catch (e) {
+        // Se o RateLimiter throws (quota esgotada), para de processar
+        if (e.message && e.message.indexOf('Quota') !== -1) {
+          console.error('🚫 [Brapi] Quota diária esgotada no getQuoteBatch. Parando.');
+          break;
+        }
         _markFailure(t);
         console.warn('⚠️ BRAPI erro para ' + t + ': ' + e.message);
       }

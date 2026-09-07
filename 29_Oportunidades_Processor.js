@@ -391,11 +391,8 @@ var OportunidadesProcessor = {
     
     if (tudo.length === 0) return;
 
-    // Escreve tudo de uma vez
+    // Escreve tudo de uma vez (dados + cabeçalho), sem formatação automática
     sheet.getRange(1, 1, tudo.length, tudo[0].length).setValues(tudo);
-    sheet.setFrozenRows(1);
-    
-    this._formatarPlanilha(sheet, dados.length);
   },
   
   _limparDestino: function(ss) {
@@ -407,65 +404,14 @@ var OportunidadesProcessor = {
   },
   
   _escreverCabecalho: function(sheet) {
+    // 🔧 v14.4: Apenas dados (cabeçalhos), sem formatação automática.
     sheet.getRange(1, 1, 1, this.CONFIG.HEADERS_DESTINO.length)
-         .setValues([this.CONFIG.HEADERS_DESTINO])
-         .setFontWeight("bold")
-         .setBackground("#1a1a2e")
-         .setFontColor("#ffffff");
-    sheet.setFrozenRows(1);
+         .setValues([this.CONFIG.HEADERS_DESTINO]);
   },
 
+  // 🔧 v14.4: Formatação automática desativada — o usuário cuida da formatação manualmente.
   _formatarPlanilha: function(sheet, numRows) {
-    try {
-      // Cabeçalho estilizado
-      sheet.getRange(1, 1, 1, this.CONFIG.HEADERS_DESTINO.length)
-           .setFontWeight("bold")
-           .setBackground("#1a1a2e")
-           .setFontColor("#ffffff")
-           .setHorizontalAlignment("center");
-      
-      if (numRows <= 0) return;
-      
-      // Formatação de Moeda (Colunas C=C, D, E, F, G -> Índices 3,4,5,6,7)
-      sheet.getRange(2, 3, numRows, 5).setNumberFormat('"R$" #,##0.00');
-      
-      // Formatação de Risco % (Coluna I -> Índice 9)
-      sheet.getRange(2, 9, numRows, 1).setNumberFormat('0.00"%"');
-      
-      // Formatação de R/R (Coluna H -> Índice 8)
-      sheet.getRange(2, 8, numRows, 1).setNumberFormat('0.00');
-      
-      // Formatação de Score (Coluna K -> Índice 11)
-      sheet.getRange(2, 11, numRows, 1).setNumberFormat('0');
-      
-      // Formatação de Data (Coluna A)
-      sheet.getRange(2, 1, numRows, 1).setNumberFormat('dd/MM HH:mm');
-      
-      // Cores condicionais por recomendação
-      for (var i = 0; i < numRows; i++) {
-        var linha = i + 2; // linha na planilha
-        var rec = sheet.getRange(linha, 10).getValue(); // Coluna J = Recomendação
-        var bgColor = '#f8f9fa';
-        
-        if (rec && rec.indexOf('✅') !== -1) {
-          bgColor = '#d4edda'; // Verde claro
-        } else if (rec && rec.indexOf('⏳') !== -1) {
-          bgColor = '#fff3cd'; // Amarelo claro
-        } else if (rec && rec.indexOf('⛔') !== -1) {
-          bgColor = '#f8d7da'; // Vermelho claro
-        }
-        
-        sheet.getRange(linha, 1, 1, 16).setBackground(bgColor);
-      }
-      
-      // Alinhamento vertical
-      sheet.getRange(2, 1, numRows, 16).setVerticalAlignment("middle");
-      
-      // Auto-Fit
-      try { sheet.autoResizeColumns(1, 16); } catch(e){}
-    } catch (e) {
-      console.warn("⚠️ Erro na formatação visual: " + e.message);
-    }
+    // Intencionalmente vazio. A formatação fica por conta do usuário.
   }
 };
 

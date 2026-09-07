@@ -520,66 +520,76 @@ function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
   if (regime === "BEARISH") s -= 30;
 
   // =========================================================================
-  // 7.1 🔧 CORREÇÃO v10.1: PENALIDADE POR EXTENSÃO (DISTÂNCIA DA EMA21)
-  // Mede o quanto o preço está "esticado" acima da média
-  // ⚠️ LIMITAÇÃO v10.1: Em subida vertical (pós-resultado), a EMA21 "persegue"
-  // o preço rapidamente, subestimando a extensão. A v10.2 adiciona métricas
-  // de topo recente (h50) e ganho acumulado rápido (seções 7.2 e 7.3).
-  // =========================================================================
+  // 7.1 CORRECAO v10.1: PENALIDADE POR EXTENSAO (DISTANCIA DA EMA21)
+  // Mede o quanto o/preco esta "esticado" acima da media
+  // LIMITACAO v10.1: Em subida vertical (pos-resultado), a EMA21 "persegue"
+  // o/preco rapidamente, subestimando a extensao. A v10.2 adiciona metricas
+  // de topo recente (h50) e ganho acumulado rapido (secoes 7.2 e 7.3).
+  // v14.0: Penalidades reduzidas quando ADX e forte (tendencia madura justifica)
+  //        e quando setup e SWING (tolera mais volatilidade).
+  var _adxStrong = (ind && ind.adx) >= 25;
+  // v14.0: Detecting swing setup via global 'setup' var if available (no hard dependency)
+  var _setupStr = (typeof setup !== 'undefined' && setup) ? String(setup).toUpperCase() : '';
+  var _isSwing = _setupStr.indexOf('SWING') !== -1 || _setupStr.indexOf('FIBO') !== -1 || _setupStr.indexOf('TENDENCIA') !== -1;
+  
   if (ind.ema21 > 0 && preco > ind.ema21) {
     var extPctCore = (preco - ind.ema21) / ind.ema21;
+    var penaltyExt = 0;
     if (extPctCore > 0.10) {
-      s -= 25;  // Esticado demais
-      console.warn("⚠️ [Core22] Preço esticado " + (extPctCore * 100).toFixed(1) + "% acima da EMA21 — penalidade -25 (timing ruim)");
+      penaltyExt = _adxStrong ? 15 : 25;
+      console.warn("⚠️ [Core22] Preco esticado " + (extPctCore * 100).toFixed(1) + "% acima da EMA21 - penalidade -" + penaltyExt + (penaltyExt < 25 ? " (ADX forte)" : "") + " (timing ruim)");
     } else if (extPctCore > 0.07) {
-      s -= 15;
-      console.warn("⚠️ [Core22] Preço esticado " + (extPctCore * 100).toFixed(1) + "% acima da EMA21 — penalidade -15");
+      penaltyExt = _adxStrong ? 8 : 15;
+      console.warn("⚠️ [Core22] Preco esticado " + (extPctCore * 100).toFixed(1) + "% acima da EMA21 - penalidade -" + penaltyExt + (penaltyExt < 15 ? " (ADX forte)" : ""));
     } else if (extPctCore > 0.04) {
-      s -= 8;
-      console.log("ℹ️ [Core22] Preço levemente esticado " + (extPctCore * 100).toFixed(1) + "% acima da EMA21 — penalidade -8");
+      penaltyExt = _adxStrong ? 4 : 8;
+      console.log("ℹ️ [Core22] Preco levemente esticado " + (extPctCore * 100).toFixed(1) + "% acima da EMA21 - penalidade -" + penaltyExt + (penaltyExt < 8 ? " (ADX forte)" : ""));
     }
+    if (_isSwing && penaltyExt > 0) penaltyExt = Math.round(penaltyExt * 0.7);
+    s -= penaltyExt;
   }
-
-  // =========================================================================
-  // 7.2 🔧 CORREÇÃO v10.2: PREÇO COLADO NO TOPO RECENTE (H50)
-  // Se o preço está nos 3% abaixo da máxima de 30 candles, comprar agora
-  // significa pagar preço cheio do movimento — alto risco de pullback
-  // =========================================================================
+  
+  // 7.2 CORRECAO v10.2: PRECO COLADO NO TOPO RECENTE (H50)
+  // Se o/preco esta nos 3% abaixo da maxima de 30 candles, comprar agora
+  // significa pagar/preco cheio do movimento - alto risco de pullback
   if (est.h50 > 0 && preco > 0) {
     var distTopoCore = (est.h50 - preco) / est.h50;
+    var penaltyTopo = 0;
     if (distTopoCore < 0.01) {
-      s -= 20;  // Preço no topo (dentro de 1%)
-      console.warn("⚠️ [Core22] Preço NO TOPO recente (distância " + (distTopoCore * 100).toFixed(1) + "% da máxima) — penalidade -20");
+      penaltyTopo = _adxStrong ? 12 : 20;
+      console.warn("⚠️ [Core22] Preco NO TOPO recente (distancia " + (distTopoCore * 100).toFixed(1) + "% da maxima) - penalidade -" + penaltyTopo + (penaltyTopo < 20 ? " (ADX forte)" : ""));
     } else if (distTopoCore < 0.03) {
-      s -= 12;  // Preço muito próximo do topo (dentro de 3%)
-      console.warn("⚠️ [Core22] Preço próximo ao TOPO recente (distância " + (distTopoCore * 100).toFixed(1) + "% da máxima) — penalidade -12");
+      penaltyTopo = _adxStrong ? 7 : 12;
+      console.warn("⚠️ [Core22] Preco proximo ao TOPO recente (distancia " + (distTopoCore * 100).toFixed(1) + "% da maxima) - penalidade -" + penaltyTopo + (penaltyTopo < 12 ? " (ADX forte)" : ""));
     } else if (distTopoCore < 0.05) {
-      s -= 6;   // Preço relativamente próximo do topo (dentro de 5%)
-      console.log("ℹ️ [Core22] Preço a " + (distTopoCore * 100).toFixed(1) + "% do topo recente — penalidade leve -6");
+      penaltyTopo = _adxStrong ? 3 : 6;
+      console.log("ℹ️ [Core22] Preco a " + (distTopoCore * 100).toFixed(1) + "% do topo recente - penalidade leve -" + penaltyTopo + (penaltyTopo < 6 ? " (ADX forte)" : ""));
     }
+    if (_isSwing && penaltyTopo > 0) penaltyTopo = Math.round(penaltyTopo * 0.6);
+    s -= penaltyTopo;
   }
-
-  // =========================================================================
-  // 7.3 🔧 CORREÇÃO v10.2: GANHO RÁPIDO ACUMULADO (MOVIMENTO ACELERADO)
-  // Deteta subida vertical curta (ex: +12% pós-resultado em poucos candles)
-  // Mesmo se a EMA21 alcançou o preço, o movimento rápido cria risco de
-  // realização de lucros / exhaustion gap
-  // =========================================================================
+  
+  // 7.3 CORRECAO v10.2: GANHO RAPIDO ACUMULADO (MOVIMENTO ACELERADO)
+  // Detecta subida vertical curta (ex: +12% pos-resultado em poucos candles)
+  // Mesmo se a EMA21 alcanco o/preco, o movimento rapido cria risco de
+  // realizacao de lucros / exhaustion gap
   if (est.ganhoRapidoPct > 0) {
+    var penaltyGanho = 0;
     if (est.ganhoRapidoPct > 0.12) {
-      s -= 25;  // Subida de mais de 12% em 10 sessões = esticado vertical
-      console.warn("⚠️ [Core22] GANHO RÁPIDO de " + (est.ganhoRapidoPct * 100).toFixed(1) + "% em 10 candles (movimento acelerado) — penalidade -25");
+      penaltyGanho = _adxStrong ? 15 : 25;
+      console.warn("⚠️ [Core22] GANHO RAPIDO de " + (est.ganhoRapidoPct * 100).toFixed(1) + "% em 10 candles (movimento acelerado) - penalidade -" + penaltyGanho + (penaltyGanho < 25 ? " (ADX forte)" : ""));
     } else if (est.ganhoRapidoPct > 0.08) {
-      s -= 15;
-      console.warn("⚠️ [Core22] GANHO RÁPIDO de " + (est.ganhoRapidoPct * 100).toFixed(1) + "% em 10 candles — penalidade -15");
+      penaltyGanho = _adxStrong ? 8 : 15;
+      console.warn("⚠️ [Core22] GANHO RAPIDO de " + (est.ganhoRapidoPct * 100).toFixed(1) + "% em 10 candles - penalidade -" + penaltyGanho + (penaltyGanho < 15 ? " (ADX forte)" : ""));
     } else if (est.ganhoRapidoPct > 0.05) {
-      s -= 8;
-      console.log("ℹ️ [Core22] Ganho de " + (est.ganhoRapidoPct * 100).toFixed(1) + "% em 10 candles — penalidade leve -8");
+      penaltyGanho = _adxStrong ? 4 : 8;
+      console.log("ℹ️ [Core22] Ganho de " + (est.ganhoRapidoPct * 100).toFixed(1) + "% em 10 candles - penalidade leve -" + penaltyGanho + (penaltyGanho < 8 ? " (ADX forte)" : ""));
     }
+    if (_isSwing && penaltyGanho > 0) penaltyGanho = Math.round(penaltyGanho * 0.6);
+    s -= penaltyGanho;
   }
-
-  // =========================================================================
-  // 8. BOLLINGER BANDS — ENTRY TIMING QUALITY (CALIBRADO v12.1)
+  
+// 8. BOLLINGER BANDS — ENTRY TIMING QUALITY (CALIBRADO v12.1)
   // =========================================================================
   // ⚠️ NOTA: Ativos em tendência forte NORMALMENTE negociam nos 30% superiores
   // da banda. Penalidades excessivas matam scores de ativos com ADX forte.

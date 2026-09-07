@@ -94,7 +94,11 @@ IMPORTANTE:
 
 {"score": <número 0-100>, "rationale": "<1 frase curta explicando a decisão principal>", "sentiment": "<BULLISH|BEARISH|NEUTRAL>"}`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    // 🔧 v7.1: chave normalizada e enviada também na query string (?key=)
+    // para evitar o erro 401 ACCESS_TOKEN_TYPE_UNSUPPORTED (conflito com o
+    // header Authorization OAuth injetado automaticamente pelo Apps Script).
+    const cleanKey = String(key || '').trim().replace(/[\r\n]+/g, '');
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cleanKey)}`;
 
     const payload = {
       contents: [{ parts: [{ text: prompt }] }],
@@ -104,13 +108,27 @@ IMPORTANTE:
       }
     };
 
-    const response = UrlFetchApp.fetch(url, {
+    // 🔧 v7.2: auth key (prefixo 'AQ.') — tenta x-goog-api-key + query string
+    // e, se rejeitada com 401/403, tenta Authorization: Bearer (sem query string).
+    let response = UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
-      headers: { 'x-goog-api-key': key },
+      headers: { 'x-goog-api-key': cleanKey },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
+
+    if (/^AQ\./i.test(cleanKey) && (response.getResponseCode() === 401 || response.getResponseCode() === 403)) {
+      console.warn(`⚠️ [_callGemini] ${op.ticker}: auth key rejeitada (HTTP ${response.getResponseCode()}). Tentando Authorization: Bearer...`);
+      const urlBearer = url.split('?key=')[0];
+      response = UrlFetchApp.fetch(urlBearer, {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + cleanKey },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+    }
 
     const resText = response.getContentText();
     const json    = JSON.parse(resText);

@@ -16,7 +16,6 @@ function PROCESSAR_CARTEIRA_FINAL() {
       var resumo = ss.getSheetByName("Resumo_Trades_Aprovados");
       if (resumo && resumo.getLastRow() > 6) {
         resumo.getRange(7, 1, Math.max(0, resumo.getLastRow() - 6), resumo.getLastColumn()).clearContent().clearFormat();
-        resumo.setFrozenRows(6);
       }
     } catch (e) {
       console.warn('Não foi possível limpar Resumo_Trades_Aprovados: ' + e.message);
@@ -32,7 +31,7 @@ function PROCESSAR_CARTEIRA_FINAL() {
     'ITUB4':'Bancos', 'BBAS3':'Bancos', 'BBDC4':'Bancos', 'BPAC11':'Bancos',
     'RENT3':'Locação', 'WEGE3':'Industrial', 'SBSP3':'Saneamento', 'VIVT3':'Telecom',
     'GGBR4':'Siderurgia', 'CSNA3':'Siderurgia', 'ABEV3':'Consumo', 'HYPE3':'Saúde',
-    'JBSS3':'Alimentos', 'B3SA3':'Financeiro', 'AXIA3':'Elétrica', 'CPLE3':'Elétrica', 'RAIL3':'Logística',
+    'JBSS32':'Alimentos', 'B3SA3':'Financeiro', 'AXIA3':'Elétrica', 'CPLE3':'Elétrica', 'RAIL3':'Logística',
     'SUZB3':'Papel e Celulose', 'VBBR3':'Energia', 'RDOR3':'Saúde', 'EQTL3':'Elétrica',
     'RADL3':'Saúde', 'LREN3':'Varejo', 'MGLU3':'Varejo'
   };
@@ -272,90 +271,41 @@ function _escreverTabelaRanker(ss, trades, sheetName) {
     }
 
     var rangeDados = dest.getRange(7, 1, rows.length, 14);
+    // 🔧 v14.4: Preenche apenas os dados, sem formatação automática.
     rangeDados.setValues(rows);
-
-    // Formatações de número
-    dest.getRange(7, 1, rows.length, 1).setNumberFormat('dd/mm/yyyy HH:mm');
-    dest.getRange(7, 6, rows.length, 4).setNumberFormat('"R$ "#,##0.00');
-    dest.getRange(7, 11, rows.length, 1).setNumberFormat('0.0%');
-    dest.getRange(7, 12, rows.length, 1).setNumberFormat('0.00');
-
-
-    // Cores condicionais baseadas no STATUS
-    var statusValues = dest.getRange(7, 2, rows.length, 1).getValues();
-    var colors = [];
-    var fontColors = [];
-    var weights = [];
-
-    for (var j = 0; j < statusValues.length; j++) {
-      var s = statusValues[j][0];
-      if (s === "🚀 COMPRAR") {
-        colors.push(["#d9ead3"]);
-        fontColors.push(["#27ae60"]);
-        weights.push(["bold"]);
-      } else if (s === "🔭 RADAR") {
-        colors.push(["#fff2cc"]);
-        fontColors.push(["#f1c40f"]);
-        weights.push(["bold"]);
-      } else {
-        colors.push(["#ffffff"]);
-        fontColors.push(["#7f8c8d"]);
-        weights.push(["normal"]);
-      }
-    }
-
-    dest.getRange(7, 2, rows.length, 1).setBackgrounds(colors);
-    dest.getRange(7, 2, rows.length, 1).setFontColors(fontColors);
-    dest.getRange(7, 2, rows.length, 1).setFontWeights(weights);
-    rangeDados.setHorizontalAlignment("center");
   }
-
-  dest.setFrozenRows(6);
 }
 
 // ============================================================================
 // FUNÇÃO: Desenhar Glossário e Cabeçalhos
 // ============================================================================
 function _desenharGlossario(sheet) {
-  // Limpa apenas o necessário para reconstruir
-  sheet.getRange("A1:N6").clearContent().clearFormat();
+  // 🔧 v14.4: Preenche apenas os DADOS (título, glossário e cabeçalhos),
+  // sem formatação automática. A formatação fica por conta do usuário.
+  sheet.getRange("A1:N6").clearContent();
 
-  // Título Principal
-  sheet.getRange("A1:N1").merge()
+  // Título Principal (apenas o texto, sem estilização)
+  sheet.getRange("A1:N1").merge().setValue("CARTEIRA RECOMENDADA B3-V10 (SMART HOLD) — PAINEL DE INTELIGÊNCIA");
 
-    .setValue("🏆 CARTEIRA RECOMENDADA B3-V10 (SMART HOLD) — PAINEL DE INTELIGÊNCIA")
-    .setBackground("#0C343D").setFontColor("#FFFFFF").setFontWeight("bold")
-    .setHorizontalAlignment("center").setVerticalAlignment("middle").setFontSize(11);
-
-  // Definição do Glossário (Corrigido para exibir as descrições na Coluna E e incluindo OBV e BTC)
-  // 🔧 CORREÇÃO v9: Thresholds atualizados para refletir adjustment macro
+  // Definição do Glossário
   var glossario = [
     ["🚀 COMPRAR", "Setup de alta qualidade + IA favorável (Score ≥ 65)", "🎯 SWING IDEAL", "Pullback Fibo + Tendência Forte + RR ≥ 1.5"],
     ["🔭 RADAR", "Setup promissor, aguardar confirmação (Score 55-69)", "📈 OBV UP", "Acumulação institucional silenciosa (fluxo comprador forte)"],
-
     ["🛡️ NEUTRO", "Setup de baixo score, stop inviável ou fora do timing", "📉 OBV DOWN", "Distribuição institucional silenciosa (alerta de rompimento falso)"],
     ["❌ VETADO", "Risco excessivo (RR baixo, correlação extrema ou Compliance)", "🚨 BTC ALTO", "Alto saldo de aluguel de ações (forte pressão de short-sellers B3)"]
   ];
 
-  // Aplica os textos nas células (Linhas 2 a 5)
+  // Aplica apenas os textos (Linhas 2 a 5), sem estilização
   for (var i = 0; i < glossario.length; i++) {
-    var linha = glossario[i];
     var row = i + 2;
-    sheet.getRange(row, 1).setValue(linha[0]).setFontWeight("bold").setHorizontalAlignment("left");
-    sheet.getRange(row, 2).setValue(linha[1]).setFontSize(9).setHorizontalAlignment("left");
-    
-    sheet.getRange(row, 4).setValue(linha[2]).setFontWeight("bold").setHorizontalAlignment("left");
-    sheet.getRange(row, 5).setValue(linha[3]).setFontSize(9).setHorizontalAlignment("left");
+    sheet.getRange(row, 1).setValue(glossario[i][0]);
+    sheet.getRange(row, 2).setValue(glossario[i][1]);
+    sheet.getRange(row, 4).setValue(glossario[i][2]);
+    sheet.getRange(row, 5).setValue(glossario[i][3]);
   }
 
-  // Estilização das etiquetas
-  sheet.getRange("A2:A5").setBackground("#F4F5F7").setFontColor("#1C4587");
-  sheet.getRange("D2:D5").setBackground("#F4F5F7").setFontColor("#A64D79");
-
-  // Cabeçalhos da Tabela (Linha 6)
+  // Cabeçalhos da Tabela (Linha 6) — apenas valores
   var headers = ["DATA/HORA", "STATUS", "TICKER", "SETOR", "SETUP", "PREÇO ATUAL", "ENTRADA FIBO", "STOP", "ALVO", "QTD", "ALOCAÇÃO %", "R/R", "SCORE", "ESTRATÉGIA"];
   var headerRange = sheet.getRange(6, 1, 1, headers.length);
-
   headerRange.setValues([headers]);
-  headerRange.setBackground("#111111").setFontColor("#FFFFFF").setFontWeight("bold").setHorizontalAlignment("center");
 }

@@ -103,7 +103,7 @@ O scanner processa 14 tickers pré-definidos em lotes de 5:
 
 ```
 📦 Lote 1: VALE3, PETR4, ITUB4, BBAS3, WEGE3
-📦 Lote 2: GGBR4, JBSS3, RAIL3, PRIO3, RENT3
+📦 Lote 2: GGBR4, JBSS32, RAIL3, PRIO3, RENT3
 📦 Lote 3: HYPE3, SBSP3, CPLE3, ABEV3
 ```
 

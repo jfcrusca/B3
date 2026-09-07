@@ -202,7 +202,11 @@ var Orchestrator = {
     var totalProcessados = 0;
     var totalBatches = Math.ceil(tickers.length / BATCH_SIZE);
     var falhasConsecutivas = 0;
-    var FALHA_MAXIMA = 3;
+    // 🔧 v14.0: FALHA_MAXIMA aumentado para não matar o scanner quando
+    // APIs estão com quota esgotada (ex: 429 global). 3 era agressivo demais
+    // e interrompia o pipeline com 73 tickers restantes após 3 falhas.
+    // Agora só interrompe se TODOS os tickers da lista falharem seguidos (>50%).
+    var FALHA_MAXIMA = Math.ceil(tickers.length * 0.5) || 5;
 
     for (var batchIndex = 0; batchIndex < tickers.length; batchIndex += BATCH_SIZE) {
       var elapsed = Date.now() - inicio;
@@ -387,14 +391,104 @@ var Orchestrator = {
    */
   _extrairPrecosDosResultados: function(lista) {
     var atualizados = 0;
-    lista.forEach(function(op) {
-      // O preço já está em op.price (obtido via STRATEGY_EVALUATE_CORE)
+
+    // 🔧 CORREÇÃO v12.7: CONCILIAÇÃO DE PREÇO COM COTAÇÃO AO VIVO (EM LOTE)
+    // O op.price vem do close do ÚLTIMO CANDLE DIÁRIO do histórico (getMarketData),
+    // que pode estar defasado (cache de 10/30 min, candle do dia sem close, evento
+    // corporativo tipo grupamento/desdobramento — ex: ONCO3 exibindo R$5,20 com a
+    // cotação real em R$1,21). Fazemos 1 chamada em lote (getPrecosAtuaisEmLote) e
+    // usamos a cotação ao vivo como op.livePrice (APENAS para exibição). O op.price
+    // permanece intacto para os cálculos técnicos (indicadores/score). Quando a
+    // divergência é forte (>15%), marcamos op.alertaLive para sinalizar na planilha.
+
+    var tickersParaCotar = [];
+    var mapaIdx = {};
+    var precosReferencia = {};
+    lista.forEach(function(op, idx) {
+      if (!op || !op.ticker) return;
       if (op.price && op.price > 0) {
-        op.livePrice = op.price;
-        atualizados++;
+        if (!mapaIdx[op.ticker]) {
+          mapaIdx[op.ticker] = [];
+          tickersParaCotar.push(op.ticker);
+          precosReferencia[op.ticker] = op.price; // 1ª ocorrência = referência do candle
+        }
+        mapaIdx[op.ticker].push(idx);
       }
     });
-    console.log("💰 Preços extraídos dos resultados do scanner: " + atualizados + "/" + lista.length + " ativos");
+
+    // 🔧 v12.7: OVERRIDE MANUAL — força o preço exibido (Script Property PRECO_OVERRIDE_<TICKER>).
+    // Útil quando as fontes de mercado retornam preço defasado (ex: ONCO3 0,92 vs real 1,20).
+    if (tickersParaCotar.length > 0 && typeof DataService !== 'undefined' && typeof DataService.getPrecoOverride === 'function') {
+      var tickersOverride = {};
+      for (var oi = 0; oi < tickersParaCotar.length; oi++) {
+        var tkOverride = tickersParaCotar[oi];
+        var precoOverride = DataService.getPrecoOverride(tkOverride);
+        if (precoOverride && precoOverride > 0) {
+          var idxLista = mapaIdx[tkOverride] || [];
+          for (var oi2 = 0; oi2 < idxLista.length; oi2++) {
+            var opOv = lista[idxLista[oi2]];
+            if (!opOv) continue;
+            opOv.livePrice = precoOverride;
+            opOv.precoOverrideUsado = true;
+            atualizados++;
+            console.log('   🔧 [Orchestrator] Override manual de preço ' + tkOverride + ': R$ ' + precoOverride.toFixed(2));
+          }
+          tickersOverride[tkOverride] = true;
+        }
+      }
+      if (Object.keys(tickersOverride).length > 0) {
+        // Remove do lote de cotação os tickers que já têm override manual
+        tickersParaCotar = tickersParaCotar.filter(function(t) { return !tickersOverride[t]; });
+      }
+    }
+
+    if (tickersParaCotar.length > 0 && typeof DataService !== 'undefined' && typeof DataService.getPrecosAtuaisEmLote === 'function') {
+      try {
+        // Passa a referência (close do candle) para a verificação cruzada de cotações suspeitas
+        var cotacoes = DataService.getPrecosAtuaisEmLote(tickersParaCotar, { precosReferencia: precosReferencia });
+        if (cotacoes && typeof cotacoes === 'object') {
+          for (var tk in cotacoes) {
+            if (!Object.prototype.hasOwnProperty.call(cotacoes, tk)) continue;
+            var q = cotacoes[tk];
+            if (!q || !q.price || !(q.price > 0)) continue;
+            var indices = mapaIdx[tk] || [];
+            for (var i = 0; i < indices.length; i++) {
+              var op = lista[indices[i]];
+              if (!op || !op.price) continue;
+              op.livePrice = q.price; // Preço exibido = cotação ao vivo (ou close do candle se sinalizado corrompido)
+              // 🔧 v12.9: Se o DataService marcou a cotação como corrompida (preço divergente >35% do candle),
+              // propagamos alerta para o usuário saber que aquele preço veio do candle diário, não da cotação ao vivo.
+              if (q.corrompido) {
+                op.alertaLive = '🚨 Fonte (' + (q.source || '?') + ') retornou preço divergente (R$ ' + (q.precoRealSuspeito || 0).toFixed(2) + '). Usado close do candle (R$ ' + q.price.toFixed(2) + ').';
+              }
+              var diffPct = Math.abs(q.price - op.price) / op.price;
+              if (diffPct > 0.005) {
+                console.log('   🔄 Preço ao vivo ' + tk + ': R$ ' + op.price.toFixed(2) + ' → R$ ' + q.price.toFixed(2) + ' (candle diário vs cotação)');
+              }
+              // 🚨 Divergência forte indica dado defasado / evento corporativo
+              if (diffPct > 0.15) {
+                op.alertaLive = '🚨 Preço do candle (R$ ' + op.price.toFixed(2) + ') diverge ' + (diffPct * 100).toFixed(0) + '% da cotação ao vivo (R$ ' + q.price.toFixed(2) + ') — análise possivelmente defasada';
+              }
+              atualizados++;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ [Orchestrator] Falha ao reconciliar preços ao vivo: ' + e.message);
+      }
+    }
+
+    // Fallback seguro: se a cotação ao vivo não estiver disponível, mantém o preço do candle
+    if (atualizados === 0) {
+      lista.forEach(function(op) {
+        if (op && op.price && op.price > 0) {
+          op.livePrice = op.price;
+          atualizados++;
+        }
+      });
+    }
+
+    console.log('💰 Preços reconciliados com cotação ao vivo: ' + atualizados + '/' + lista.length + ' ativos');
   },
 
 

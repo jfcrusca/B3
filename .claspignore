@@ -18,16 +18,6 @@ estrutura_completa_b3v10.json
 relatorio_principal_b3v10.xlsx
 estatisticas_categorias.xlsx
 
-# Scripts de diagnóstico (mantidos só no repositório local)
-TESTE_RapidAPI.js
-TESTE_BRAPI_BTC.js
-TESTE_CONFLUENCIA.js
-TESTE_NLP_INTEGRACAO.js
-TESTE_RapidAPI.js
-VerificarFunciona.js
-00_Debug_Ensemble_Tests.js
-
-
 node_modules/
 node_modules
 package.json

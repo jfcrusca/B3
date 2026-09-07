@@ -21,6 +21,7 @@
     "04_Core_RateLimiter.js",
     "00_Utils.js",
     "05_B3V10_TickerManager.js",
+    "11_Data_BolsaiFetcher.js",
     "05_Data_Service.js",
     "11_Data_AlphaVantageFetcher.js",
     "26_Data_BrapiFetcher.js",

@@ -24,6 +24,7 @@ var MenuTriade = (function () {
       .addSeparator()
       .addItem("🏆 Executar Ranker Manual", "MENU_RANKER")
       .addItem("🤖 Analisar Divergências (IA)", "MENU_AGENT_ANALYST")
+      .addItem("🤖 Atualizar Cotações ", "ATUALIZAR_COTACOES_LIV")
       .addToUi();
 
     // MENU 2: 💰 COFRE (Gestão de Portfólio)
@@ -46,7 +47,10 @@ var MenuTriade = (function () {
 
     // MENU 4: 🛠️ MANUTENÇÃO (Testes e Debug)
     ui.createMenu("🛠️ B3: MANUTENÇÃO")
+      .addItem("🔑 Configurar Chave Gemini", "CONFIGURAR_GEMINI_KEY")
       .addItem("🔑 Testar Leitura do Cofre", "TESTAR_LEITURA_DO_COFRE")
+      .addItem("🤖 Testar Conexão Gemini", "TESTAR_CONEXAO_GEMINI")
+      .addItem("🔍 Origem da Chave Gemini", "DIAGNOSTICO_ORIGEM_CHAVE_GEMINI")
       .addItem("📨 Disparar Relatório Telegram", "MENU_TELEGRAM")
       .addItem("🔔 Testar Alerta de Risco (Telegram)", "MENU_TESTAR_ALERTA_RISCO")
       .addSeparator()

@@ -42,21 +42,44 @@ var HGBrasilFetcher = (function() {
    * @param {Array<string>} tickers Lista de ativos (ex: ["PETR4", "VALE3"])
    * @returns {Object} Objeto com dados estruturados no formato unificado do sistema
    */
+  // MAX_TICKERS_PER_REQUEST: A HG Brasil nao suporta muitos tickers em uma unica URL.
+  // Limitado a 20 para evitar "Argument too large: key".
+  const MAX_TICKERS_PER_REQUEST = 20;
+
   function getQuoteBatch(tickers) {
     if (!tickers || !Array.isArray(tickers) || tickers.length === 0) return {};
 
     const key = _getApiKey();
     if (!key) {
-      console.error('❌ HG Brasil API Key não configurada');
+      console.error('HG Brasil API Key nao configurada');
       return {};
     }
 
-    // A HG Brasil espera símbolos limpos (sem .SA por padrão no endpoint de stock_price)
-    const cleanTickers = tickers.map(t => t.toUpperCase().trim().replace(/\.SA$/, ''));
+    const results = {};
+
+    // Divide em lotes para evitar "Argument too large: key"
+    for (let i = 0; i < tickers.length; i += MAX_TICKERS_PER_REQUEST) {
+      const batch = tickers.slice(i, i + MAX_TICKERS_PER_REQUEST);
+      const batchResults = _fetchBatch(batch);
+      if (batchResults && typeof batchResults === 'object') {
+        Object.assign(results, batchResults);
+      }
+      // Pausa entre lotes para respeitar rate limits
+      if (i + MAX_TICKERS_PER_REQUEST < tickers.length) {
+        Utilities.sleep(300);
+      }
+    }
+
+    return results;
+  }
+
+  function _fetchBatch(batch) {
+    // A HG Brasil espera simbolos limpos (sem .SA por padrao no endpoint de stock_price)
+    const cleanTickers = batch.map(t => t.toUpperCase().trim().replace(/\.SA$/, ''));
     
-    // Constrói a URL para múltiplos tickers separados por vírgula
+    // Constroi a URL para multiplos tickers separados por virgula
     // Ex: https://api.hgbrasil.com/finance/stock_price?key=CHAVE&symbol=PETR4,VALE3
-    const url = `${BASE_URL}?key=${key}&symbol=${cleanTickers.join(',')}`;
+    const url = `${BASE_URL}?key=${_getApiKey()}&symbol=${cleanTickers.join(',')}`;
     const cacheKey = `hg_batch_${cleanTickers.join('_')}`;
     
     const cache = CacheService.getScriptCache();
@@ -80,7 +103,7 @@ var HGBrasilFetcher = (function() {
           cleanTickers.forEach(symbol => {
             const data = json.results[symbol];
             if (data && data.price !== undefined) {
-              const originalTicker = tickers.find(t => t.toUpperCase().trim().replace(/\.SA$/, '') === symbol);
+              const originalTicker = batch.find(t => t.toUpperCase().trim().replace(/\.SA$/, '') === symbol);
               results[originalTicker] = {
                 price: data.price,
                 change: data.change_percent || 0,
@@ -90,19 +113,54 @@ var HGBrasilFetcher = (function() {
             }
           });
 
-          // Armazena no cache para economizar requisições do plano gratuito/pago
+          // Armazena no cache para economizar requisicoes do plano gratuito/pago
           try {
             cache.put(cacheKey, JSON.stringify(results), CACHE_TTL);
           } catch (cacheErr) { /* ignore cache put errors */ }
         }
       } else {
-        console.warn(`⚠️ HG Brasil retornou HTTP ${code} para a chamada em lote.`);
+        console.warn(`HG Brasil retornou HTTP ${code} para a chamada em lote.`);
       }
     } catch (e) {
-      console.warn(`⚠️ HG Brasil falhou na requisição de lote: ${e.message}`);
+      console.warn(`HG Brasil falhou na requisicao de lote: ${e.message}`);
+      // Se falhar por "Argument too large", tentar ticker por ticker
+      if (e.message && e.message.indexOf('too large') !== -1) {
+        console.warn('[HG Brasil] Tentando ticker por ticker...');
+        for (let j = 0; j < batch.length; j++) {
+          const single = _fetchSingle(batch[j]);
+          if (single) Object.assign(results, single);
+          Utilities.sleep(200);
+        }
+      }
     }
 
     return results;
+  }
+
+  function _fetchSingle(ticker) {
+    const key = _getApiKey();
+    const cleanTicker = ticker.toUpperCase().trim().replace(/\.SA$/, '');
+    const url = `${BASE_URL}?key=${key}&symbol=${cleanTicker}`;
+    try {
+      const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+      if (response.getResponseCode() === 200) {
+        const json = JSON.parse(response.getContentText());
+        const data = json.results[cleanTicker];
+        if (data && data.price !== undefined) {
+          return {
+            [ticker]: {
+              price: data.price,
+              change: data.change_percent || 0,
+              volume: data.volume || 0,
+              source: 'HGBrasil'
+            }
+          };
+        }
+      }
+    } catch (e) {
+      console.warn(`HG Brasil single falhou para ${ticker}: ${e.message}`);
+    }
+    return {};
   }
 
   /**

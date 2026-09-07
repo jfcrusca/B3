@@ -15,7 +15,8 @@ var SECRET_KEY_NAMES = [
   'RAPIDAPI_KEY',
   'GCP_PROJECT_ID',
   'FINNHUB_API_KEY',
-  'FINNHUB_KEY'
+  'FINNHUB_KEY',
+  'BOLSAI_KEY'
 ];
 
 function isSecretKeyName(key) {
