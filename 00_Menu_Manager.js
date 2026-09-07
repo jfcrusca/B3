@@ -24,15 +24,13 @@ var MenuTriade = (function () {
       .addSeparator()
       .addItem("🏆 Executar Ranker Manual", "MENU_RANKER")
       .addItem("🤖 Analisar Divergências (IA)", "MENU_AGENT_ANALYST")
-      .addItem("🤖 Atualizar Cotações ", "ATUALIZAR_COTACOES_LIV")
+      .addItem("🤖 Atualizar Cotações ", "ATUALIZAR_COTACOES_LIVE")
       .addToUi();
 
     // MENU 2: 💰 COFRE (Gestão de Portfólio)
     ui.createMenu("💰 B3: COFRE")
       .addItem("🛡️ Executar Trailing Stop & Estatísticas", "MENU_ATUALIZAR_ESTATISTICAS")
       .addItem("⚖️ Sincronizar Carteira (Stops e Alvos)", "MENU_SYNC_PORTFOLIO")
-      .addItem("🔧 Corrigir Trades Abertos (Sync Forçado)", "CORRIGIR_TRADES_ABERTOS")
-      .addItem("📜 Sincronizar Log de Trades (Performance)", "SINCRONIZAR_TRADES_LOG_ATUAL")
       .addSeparator()
       .addItem("🚨 Verificar Compliance e Risco", "MENU_COMPLIANCE")
       .addToUi();
@@ -75,9 +73,51 @@ var MenuTriade = (function () {
 // --- PONTES DE COMANDO (WRAPPERS SEGUROS) ---
 // =============================================================================
 
+// =============================================================================
+// HELPERS DE INTERFACE (UI) — compartilhados entre arquivos (escopo global GAS)
+// =============================================================================
+// Em Apps Script, SpreadsheetApp.getUi() só pode ser usado quando há uma interface
+// de usuário (rodando por menu/edição numa planilha aberta). Em gatilhos de tempo
+// ou execução pelo editor "Run", getUi() lança "Cannot call SpreadsheetApp.getUi()
+// from this context", derrubando funções que só queriam rodar em segundo plano.
+// Estes helpers blindam essa chamada e caem para log via console quando não há UI.
+
+/** Retorna o objeto Ui se houver interface, ou null caso contrário (nunca lança). */
+function b3ObterUi() {
+  try {
+    if (typeof SpreadsheetApp !== 'undefined' && typeof SpreadsheetApp.getUi === 'function') {
+      return SpreadsheetApp.getUi();
+    }
+  } catch (e) { /* sem contexto de interface */ }
+  return null;
+}
+
+/**
+ * Exibe um alerta SE houver interface de usuário; caso contrário loga no console.
+ * @param {string} titulo Título exibido no topo do alerta.
+ * @param {string} mensagem Conteúdo do alerta.
+ * @param {boolean} [optarSimNao] Se true, usa botões SIM/NÃO (retorna true/false).
+ * @returns {boolean|null} Resultado do botão, ou null quando sem UI.
+ */
+function b3UiAlert(titulo, mensagem, optarSimNao) {
+  const ui = b3ObterUi();
+  if (!ui) {
+    console.warn('ℹ️ [UI] Sem interface (background). Título: ' + String(titulo || '') + ' | ' + String(mensagem || '').replace(/\s+/g, ' ').slice(0, 300));
+    return null;
+  }
+  try {
+    if (optarSimNao) return ui.alert(String(titulo || 'Atenção'), String(mensagem || ''), ui.ButtonSet.YES_NO) === ui.Button.YES;
+    ui.alert(String(titulo || 'B3 V10'), String(mensagem || ''), ui.ButtonSet.OK);
+    return true;
+  } catch (e) {
+    console.warn('ℹ️ [UI] Falha ao exibir alerta (background): ' + e.message);
+    return null;
+  }
+}
+
 function MENU_RANKER() { 
   if (typeof PROCESSAR_CARTEIRA_FINAL === 'function') PROCESSAR_CARTEIRA_FINAL();
-  else SpreadsheetApp.getUi().alert("❌ Módulo Ranker não encontrado.");
+  else b3UiAlert('Módulo Ranker', '❌ Módulo Ranker não encontrado.');
 }
 
 function MENU_ATUALIZAR_ESTATISTICAS() {
@@ -149,79 +189,76 @@ function MENU_DEBUG_SAUDE() {
   else SpreadsheetApp.getUi().alert("❌ Ferramentas de Saúde não encontradas.");
 }
 
-function MENU_DEBUG_PETR4() {
-  const ui = SpreadsheetApp.getUi();
+function MENU_DEBUG_PETR4() { // 🔧 UI segura (funciona em gatilho/editor sem interação)
   if (typeof DebugTools !== 'undefined' && typeof DebugTools.debugarAtivo === 'function') {
     const relatorio = DebugTools.debugarAtivo('PETR4');
-    ui.alert(relatorio || "✅ Debug PETR4 executado (verifique o log).");
-  } 
+    b3UiAlert('Debug PETR4', relatorio || "✅ Debug PETR4 executado (verifique o log).");
+  }
   else if (typeof debugarAtivo === 'function') {
     debugarAtivo('PETR4');
-    ui.alert("🔍 Debug executado no console (Ctrl+Enter para ver).");
-  } 
+    b3UiAlert('Debug PETR4', "🔍 Debug executado no console.");
+  }
   else {
-    ui.alert("❌ Módulo Debug não encontrado.");
+    b3UiAlert('Debug PETR4', "❌ Módulo Debug não encontrado.");
   }
 }
 
 function MENU_LIMPAR_CACHE() {
-  if (typeof Cache !== 'undefined' && typeof Cache.clearByType === 'function') { 
-    Cache.clearByType('all'); 
-    SpreadsheetApp.getUi().alert("✅ Cache Limpo!"); 
+  if (typeof Cache !== 'undefined' && typeof Cache.clearByType === 'function') {
+    Cache.clearByType('all');
+    b3UiAlert('Cache', '✅ Cache Limpo!');
   } else if (typeof LIMPAR_CACHE_COMPLETO === 'function') {
-    LIMPAR_CACHE_COMPLETO(); 
-    SpreadsheetApp.getUi().alert("✅ Cache Limpo!"); 
+    LIMPAR_CACHE_COMPLETO();
+    b3UiAlert('Cache', '✅ Cache Limpo!');
   } else {
-    SpreadsheetApp.getUi().alert("❌ Módulo Cache não encontrado.");
+    b3UiAlert('Cache', '❌ Módulo Cache não encontrado.');
   }
 }
 
 /**
  * Wrapper para a Previsão do Agente (Módulo 36)
  */
-function MENU_AGENT_ANALYST() {
-  const ui = SpreadsheetApp.getUi();
-  
-  if (typeof AgentAnalyst !== 'undefined') {
-    try {
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheet = ss.getSheetByName("Resumo_Trades_Aprovados");
-      const ticker = sheet ? sheet.getRange("C7").getValue() : null; 
+function MENU_AGENT_ANALYST() { // 🔧 UI segura (evita "Cannot call getUi() from this context" em background)
+  if (typeof AgentAnalyst === 'undefined') {
+    b3UiAlert('Analista IA', '⚠️ Módulo 36_Agent_Analyst não encontrado.');
+    return;
+  }
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("Resumo_Trades_Aprovados");
+    const ticker = sheet ? sheet.getRange("C7").getValue() : null;
 
-      if (!ticker) {
-        ui.alert("🔭 Ranking vazio ou aba 'Resumo_Trades_Aprovados' não encontrada.");
-        return;
-      }
-
-      const mockData = {
-        score: 80,
-        setupType: "MOMENTUM",
-        price: 0, 
-        indicators: { rsi: 65, volume: "Acima da Média", atr: 0.5 },
-        macro: "Neutro", news: "N/A", memory: "N/A"
-      };
-
-      const analise = AgentAnalyst.analyze(ticker, mockData);
-      
-      const decisao = analise?.decision || "INDETERMINADA";
-      const scoreIA = analise?.ai_score || "N/A";
-      const modo    = analise?.entry_strategy?.mode || "N/A"; 
-      const razao   = analise?.entry_strategy?.reason || "Sem detalhes.";
-      const resumo  = analise?.rationale || "A IA não retornou uma justificativa clara.";
-
-      const msg = `🔮 INSIGHT DO HEAD TRADER: ${ticker}\n\n` +
-                  `Decisão: ${decisao}\n` +
-                  `Score IA: ${scoreIA}\n` +
-                  `Estratégia: ${modo}\n` +
-                  `Gatilho: ${razao}\n\n` +
-                  `Justificativa: ${resumo}`;
-
-      ui.alert("🧠 ANALISTA DE MOMENTUM", msg, ui.ButtonSet.OK);
-      
-    } catch (e) {
-      ui.alert("❌ Erro no Processamento: " + e.message);
+    if (!ticker) {
+      b3UiAlert('Analista IA', "🔭 Ranking vazio ou aba 'Resumo_Trades_Aprovados' não encontrada.");
+      return;
     }
-  } else {
-    ui.alert("⚠️ Módulo 36_Agent_Analyst não encontrado.");
+
+    const mockData = {
+      score: 80,
+      setupType: "MOMENTUM",
+      price: 0,
+      indicators: { rsi: 65, volume: "Acima da Média", atr: 0.5 },
+      macro: "Neutro", news: "N/A", memory: "N/A"
+    };
+
+    const analise = AgentAnalyst.analyze(ticker, mockData);
+
+    const decisao = analise?.decision || "INDETERMINADA";
+    const scoreIA = analise?.ai_score || "N/A";
+    const modo    = analise?.entry_strategy?.mode || "N/A";
+    const razao   = analise?.entry_strategy?.reason || "Sem detalhes.";
+    const resumo  = analise?.rationale || "A IA não retornou uma justificativa clara.";
+
+    const msg = `🔮 INSIGHT DO HEAD TRADER: ${ticker}\n\n` +
+                `Decisão: ${decisao}\n` +
+                `Score IA: ${scoreIA}\n` +
+                `Estratégia: ${modo}\n` +
+                `Gatilho: ${razao}\n\n` +
+                `Justificativa: ${resumo}`;
+
+    b3UiAlert('🧠 ANALISTA DE MOMENTUM', msg);
+
+  } catch (e) {
+    b3UiAlert('Analista IA', '❌ Erro no Processamento: ' + e.message);
   }
 }

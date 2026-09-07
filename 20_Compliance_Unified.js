@@ -49,8 +49,15 @@ verificarHorarioOperacional: function() {
                       `📝 DETALHE: ${infoTempo.detalhes}\n` +
                       `📊 RISCO DIÁRIO: ${infoStop}\n` +
                       `[Hora: ${agora.toLocaleTimeString('pt-BR')}]`;
-                      
-    SpreadsheetApp.getUi().alert("⚖️ AUDITORIA DE RISCO", relatorio, SpreadsheetApp.getUi().ButtonSet.OK);
+
+    // 🔧 CORREÇÃO UI: usa helper seguro (exibe se houver interface; senão loga),
+    // evitando o erro "Cannot call getUi() from this context" quando disparado por
+    // gatilho/editor sem planilha aberta.
+    if (typeof b3UiAlert === 'function') {
+      b3UiAlert('⚖️ AUDITORIA DE RISCO', relatorio);
+    } else {
+      console.log(relatorio);
+    }
   },
 
   // --- MOTORES PRIVADOS ---

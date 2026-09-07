@@ -188,26 +188,10 @@ var DataService = (function () {
     return null;
   }
 
-  function _tryFinnhubHistory(ticker) {
-    // 🔧 CORREÇÃO: Desativado para ativos B3. Finnhub não possui dados históricos confiáveis/ajustados para o mercado nacional.
-    console.log('⏭️ [DataService] Ignorando Finnhub para garantir a integridade técnica de ativos B3.');
-    return null;
-  }
-
-  function _tryRapidAPIYahooHistory(ticker, interval, range) {
-    if (typeof RapidAPIYahooFetcher !== 'undefined' && typeof RapidAPIYahooFetcher.getHistory === 'function') {
-      try {
-        var data = RapidAPIYahooFetcher.getHistory(ticker, interval, range);
-        if (data && data.length >= 18) {
-          console.log('📡 [DataService] RapidAPI-Yahoo forneceu ' + data.length + ' candles para ' + ticker);
-          return data;
-        }
-      } catch (e) {
-        console.warn('⚠️ [DataService] RapidAPI-Yahoo falhou para ' + ticker + ': ' + e.message);
-      }
-    }
-    return null;
-  }
+  // 🔧 Opção 2 (remoção Finnhub + RapidAPI): funções _tryFinnhubHistory e
+  // _tryRapidAPIYahooHistory removidas. O robô opera apenas ações/BDRs da B3 e o
+  // histórico real é coberto por Bolsai → BRAPI → Alpha Vantage. As chaves das APIs
+  // removidas permanecem nas Script Properties, mas sem consumidores.
 
   // ⛔ REMOVIDO: _tryHGBrasilFallback — HG Brasil retorna candles sintéticos (artificiais)
   // que invalidam a análise técnica real. Mantemos HG Brasil apenas para cotações
@@ -346,64 +330,10 @@ var DataService = (function () {
       }
     }
 
-    // ⏱️ Timeout aumentado para garantir fallbacks reais antes de desistir
-    if ((Date.now() - inicioTicker) >= TICKER_TIMEOUT_MS) {
-      console.warn('⏱️ [DataService] Timeout apos Alpha Vantage para ' + ticker + '. Pulando Finnhub e Yahoo.');
-      _tickerFailureCache[ticker] = Date.now();
-      // ⛔ Sem fallback HG Brasil (candles sintéticos) — retorna null
-      console.error('❌ [DataService] Todos os fallbacks reais exauridos para ' + ticker + '.');
-      return null;
-    }
-
-    // FALLBACK 2: Finnhub (histórico real, 60 req/min)
-    // ⏭️ Pula Finnhub para BDRs e ativos que sabemos que não existem lá
-    var skipFinnhub = false;
-    try {
-      if (typeof FinnhubFetcher !== 'undefined' && typeof FinnhubFetcher.isTickerSkippable === 'function') {
-        skipFinnhub = FinnhubFetcher.isTickerSkippable(ticker);
-      }
-    } catch(e) { /* fallback */ }
-    
-    var fhCandles = null;
-    if (!skipFinnhub) {
-      fhCandles = _normalizeCandles(_tryFinnhubHistory(ticker));
-      if (precoVivoRef > 0) fhCandles = _ajustarCandlesPorEventoCorporativo(fhCandles, precoVivoRef);
-    } else {
-      console.log('⏭️ [DataService] Pulando Finnhub para ' + ticker + ' (BDR/ETF internacional sem suporte).');
-    }
-    if (_hasMinimumCandles(fhCandles)) {
-      var result = _buildResult(ticker, fhCandles, 'FINNHUB');
-      if (result) {
-        try {
-          var dataStr = JSON.stringify(fhCandles);
-          if (dataStr.length < 90000 && cacheService) {
-            cacheService.put(cacheKey, dataStr, CACHE_TTL);
-          }
-        } catch (e) { /* cache write não crítico */ }
-        LOCAL_CACHE[cacheKey] = result;
-        return result;
-      }
-    }
-
-    // FALLBACK 3: RapidAPI Yahoo
-    var yhCandles = _normalizeCandles(_tryRapidAPIYahooHistory(ticker, interval, range));
-    if (precoVivoRef > 0) yhCandles = _ajustarCandlesPorEventoCorporativo(yhCandles, precoVivoRef);
-    if (_hasMinimumCandles(yhCandles)) {
-      var result = _buildResult(ticker, yhCandles, 'RAPIDAPI_YAHOO');
-      if (result) {
-        try {
-          var dataStr = JSON.stringify(yhCandles);
-          if (dataStr.length < 90000 && cacheService) {
-            cacheService.put(cacheKey, dataStr, CACHE_TTL);
-          }
-        } catch (e) { /* cache write não crítico */ }
-        LOCAL_CACHE[cacheKey] = result;
-        return result;
-      }
-    }
-
+    // 🔧 Opção 2 (remoção Finnhub + RapidAPI): FALLBACK 2 (Finnhub) e FALLBACK 3
+    // (RapidAPI-Yahoo) removidos. Se Bolsai + BRAPI + Alpha Vantage falharem para um
+    // ativo B3, não há mais fonte real disponível → encerra a análise do ticker.
     // ⛔ FALLBACK HG Brasil REMOVIDO: candles sintéticos inviabilizam análise técnica real
-    // Se todos os fallbacks reais falharam, ticker não pode ser analisado tecnicamente
     _tickerFailureCache[ticker] = Date.now();
     console.error('❌ [DataService] Nenhum fallback real funcionou para ' + ticker + '. Dados insuficientes para análise técnica.');
     return null;
@@ -491,7 +421,9 @@ var DataService = (function () {
     // 🔧 v13.2 (BRAPI quota exaurida, Bolsai sem intraday, Finnhub 401/403):
     // HG Brasil PROMOVIDO a prioridade 1 de cotação, pois o usuário tem a chave
     // HGBRASIL_API_KEY e as demais fontes estão indisponíveis/limitadas.
-    // Ordem: HGBrasil → Finnhub → BRAPI → RapidAPI-Yahoo → Bolsai (último recurso).
+    // Ordem: HGBrasil → BRAPI → Bolsai (Finnhub e RapidAPI-Yahoo removidos — Opção 2).
+    // 🔧 Opção 2 (remoção Finnhub + RapidAPI): PRIORIDADE 2 (Finnhub) e PRIORIDADE 4
+    // (RapidAPI-Yahoo) de cotação em lote removidos.
 
     // PRIORIDADE 1: HGBrasil (cotação real da B3 via stock_price)
     if (typeof HGBrasilFetcher !== 'undefined' && typeof HGBrasilFetcher.getQuoteBatch === 'function') {
@@ -515,31 +447,8 @@ var DataService = (function () {
       }
     }
 
-    // PRIORIDADE 2: FINNHUB (preço atual em tempo real)
+    // PRIORIDADE 2: BRAPI (quota pode voltar; fallback)
     var missingTickers = tickersArray.filter(function(t) { return !resultado[t] || resultado[t].price === undefined; });
-    if (missingTickers.length > 0 && typeof FinnhubFetcher !== 'undefined' && typeof FinnhubFetcher.getQuoteBatch === 'function') {
-      try {
-        var finnhubBatch = FinnhubFetcher.getQuoteBatch(missingTickers);
-        if (finnhubBatch && typeof finnhubBatch === 'object') {
-          Object.keys(finnhubBatch).forEach(function (ticker) {
-            var quote = finnhubBatch[ticker];
-            if (quote && quote.price !== undefined && quote.price > 0) {
-              resultado[ticker] = {
-                price: quote.price,
-                change: quote.change,
-                volume: quote.volume,
-                source: 'Finnhub'
-              };
-            }
-          });
-        }
-      } catch (fhErr) {
-        console.warn('⚠️ FinnhubFetcher.getQuoteBatch falhou:', fhErr.message);
-      }
-    }
-
-    // PRIORIDADE 3: BRAPI (quota pode voltar; fallback)
-    missingTickers = tickersArray.filter(function(t) { return !resultado[t] || resultado[t].price === undefined; });
     if (missingTickers.length > 0 && typeof BrapiFetcher !== 'undefined' && typeof BrapiFetcher.getQuoteBatch === 'function') {
       try {
         var brapiBatch = BrapiFetcher.getQuoteBatch(missingTickers);
@@ -556,26 +465,7 @@ var DataService = (function () {
       }
     }
 
-    // PRIORIDADE 4: RapidAPI-Yahoo
-    missingTickers = tickersArray.filter(function(t) { return !resultado[t] || resultado[t].price === undefined; });
-    if (missingTickers.length > 0 && typeof RapidAPIYahooFetcher !== 'undefined' && typeof RapidAPIYahooFetcher.getQuoteBatch === 'function') {
-      try {
-        console.log('🔄 Fallback RapidAPI-Yahoo ativado para ' + missingTickers.length + ' ativos...');
-        var yhBatch = RapidAPIYahooFetcher.getQuoteBatch(missingTickers);
-        if (yhBatch && typeof yhBatch === 'object') {
-          Object.keys(yhBatch).forEach(function (ticker) {
-            var quote = yhBatch[ticker];
-            if (quote && quote.price !== undefined) {
-              resultado[ticker] = quote;
-            }
-          });
-        }
-      } catch (yhErr) {
-        console.warn('⚠️ RapidAPIYahooFetcher.getQuoteBatch falhou:', yhErr.message);
-      }
-    }
-
-    // PRIORIDADE 5: Bolsai (último recurso — sem intradiário, pode vir defasado)
+    // PRIORIDADE 3: Bolsai (último recurso — sem intradiário, pode vir defasado)
     missingTickers = tickersArray.filter(function(t) { return !resultado[t] || resultado[t].price === undefined; });
     if (missingTickers.length > 0 && typeof BolsaiFetcher !== 'undefined' && typeof BolsaiFetcher.getQuoteBatch === 'function') {
       try {
@@ -690,12 +580,27 @@ var DataService = (function () {
         console.warn('⚠️ [GOOGLEFINANCE] Nenhum ticker para popular a aba Cotacoes_Live.');
         return false;
       }
-      // Remove duplicatas e normaliza (.SA -> limpo)
+      // 🔧 v15.x (FIX #N/A): Normaliza tickers ANTES de gravar as fórmulas.
+      // Códigos descontinuados/alterados na B3 (ex: TRPL4→ISAE4, VIIA3→BHIA3,
+      // JBSS3→JBSS32/BDR da JBS desde jun/2025) retornavam #N/A no GOOGLEFINANCE
+      // porque o símbolo antigo não é mais reconhecido. Aplicamos:
+      //   1) filterDead → remove ativos realmente inativos/inexistentes;
+      //   2) resolveTicker → converte aliases/legados para o ticker canônico atual.
+      var tm = (typeof B3V10_TICKER_MANAGER !== 'undefined') ? B3V10_TICKER_MANAGER : null;
+      var base = [];
+      for (var i = 0; i < tickers.length; i++) {
+        base.push(String(tickers[i]).toUpperCase().trim().replace(/\.SA$/, ''));
+      }
+      if (tm && typeof tm.filterDead === 'function') base = tm.filterDead(base);
+      if (tm && typeof tm.resolveTickerList === 'function') base = tm.resolveTickerList(base);
+
+      // Remove duplicatas após a normalização
       var unicos = [];
       var vistos = {};
-      for (var i = 0; i < tickers.length; i++) {
-        var t = String(tickers[i]).toUpperCase().trim().replace(/\.SA$/, '');
-        if (!vistos[t]) { vistos[t] = true; unicos.push(t); }
+      for (var k = 0; k < base.length; k++) {
+        var tk = String(base[k]).toUpperCase().trim().replace(/\.SA$/, '');
+        if (!tk) continue;
+        if (!vistos[tk]) { vistos[tk] = true; unicos.push(tk); }
       }
 
       var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -714,6 +619,13 @@ var DataService = (function () {
       }
       sheet.getRange(2, 1, linhas.length, 2).setValues(linhas);
       sheet.getRange('B2:B' + (linhas.length + 1)).setNumberFormat('R$ #,##0.00');
+      // 🔧 v15.x (FIX #N/A): Remove linhas residuais abaixo da nova lista (de execuções
+      // antigas) para não sobrar tickers legados/sem preço na aba.
+      var ultimaLinhaUsada = linhas.length + 1;
+      var ultimaLinhaAba = sheet.getLastRow();
+      if (ultimaLinhaAba > ultimaLinhaUsada) {
+        sheet.getRange(ultimaLinhaUsada + 1, 1, ultimaLinhaAba - ultimaLinhaUsada, 2).clearContent();
+      }
       console.log('✅ [GOOGLEFINANCE] Aba Cotacoes_Live populada com ' + linhas.length + ' tickers. Aguarde o recálculo do Google Sheets (~1-5 min).');
       return true;
     } catch (e) {
@@ -782,8 +694,7 @@ var DataService = (function () {
 
     var tickerLimpo = ticker.replace(/\.SA$/i, '').toUpperCase();
 
-    // 1. 🔧 v13.2 (BRAPI quota exaurida, Finnhub 401/403): HGBrasil — cotação real da B3.
-    // O usuário tem a chave HGBRASIL_API_KEY. Prioridade máxima sobre as demais fontes.
+    // 1. HGBrasil — cotação real da B3 (prioridade máxima sobre as demais fontes).
     try {
       if (typeof HGBrasilFetcher !== 'undefined' && typeof HGBrasilFetcher.getQuote === 'function') {
         var hgQuote = HGBrasilFetcher.getQuote(tickerLimpo);
@@ -802,26 +713,7 @@ var DataService = (function () {
       console.warn('⚠️ HGBrasilFetcher.getQuote falhou para ' + ticker + ':', hgErr.message);
     }
 
-    // 2. Tenta via FINNHUB (preço atual em tempo real; pode estar com chave indisponível)
-    try {
-      if (typeof FinnhubFetcher !== 'undefined' && typeof FinnhubFetcher.getQuote === 'function') {
-        var fhQuote = FinnhubFetcher.getQuote(tickerLimpo);
-        if (fhQuote && fhQuote.price !== undefined && fhQuote.price > 0) {
-          return {
-            price: fhQuote.price,
-            timestamp: new Date(),
-            source: 'Finnhub',
-            ticker: ticker,
-            change: fhQuote.change,
-            volume: fhQuote.volume
-          };
-        }
-      }
-    } catch (fhErr) {
-      console.warn('⚠️ FinnhubFetcher.getQuote falhou para ' + ticker + ':', fhErr.message);
-    }
-
-    // 3. Tenta via BRAPI (fallback quando a quota voltar)
+    // 2. Tenta via BRAPI (fallback quando a quota voltar) — Finnhub removido (Opção 2)
     try {
       var token = (typeof CONFIG !== 'undefined' && typeof CONFIG.getSecret === 'function') ? CONFIG.getSecret('BRAPI_TOKEN') : null;
       if (token) {
@@ -855,25 +747,8 @@ var DataService = (function () {
       console.warn('⚠️ Erro ao obter preco ao vivo via BRAPI para ' + ticker + ': ' + e.message);
     }
 
-    // 4. Tenta via RapidAPI-Yahoo
-    if (typeof RapidAPIYahooFetcher !== 'undefined' && typeof RapidAPIYahooFetcher.getQuoteBatch === 'function') {
-      try {
-        var yhBatch = RapidAPIYahooFetcher.getQuoteBatch([tickerLimpo]);
-        if (yhBatch && yhBatch[tickerLimpo] && yhBatch[tickerLimpo].price !== undefined) {
-          return {
-            price: yhBatch[tickerLimpo].price,
-            timestamp: new Date(),
-            source: 'RapidAPI-Yahoo',
-            ticker: ticker,
-            change: yhBatch[tickerLimpo].change
-          };
-        }
-      } catch (yhErr) {
-        console.warn('⚠️ RapidAPIYahooFetcher.getQuoteBatch falhou para ' + ticker + ':', yhErr.message);
-      }
-    }
-
-    // 5. Último recurso: Bolsai (sem intradiário, pode vir defasado)
+    // 3. Último recurso: Bolsai (sem intradiário, pode vir defasado)
+    //    — RapidAPI-Yahoo removido (Opção 2)
     try {
       if (typeof BolsaiFetcher !== 'undefined' && typeof BolsaiFetcher.getQuote === 'function') {
         var bolsaiQuote = BolsaiFetcher.getQuote(tickerLimpo);
@@ -1032,16 +907,6 @@ function VERIFICAR_COTACAO(ticker) {
       resultado.bolsai = (qB && qB.price !== undefined) ? qB.price : null;
     } catch (e) {
       resultado.bolsai = 'erro: ' + e.message;
-    }
-  }
-
-  // 4. RapidAPI-Yahoo (direto)
-  if (typeof RapidAPIYahooFetcher !== 'undefined' && typeof RapidAPIYahooFetcher.getQuoteBatch === 'function') {
-    try {
-      var yh = RapidAPIYahooFetcher.getQuoteBatch([ticker]);
-      resultado.rapidapiYahoo = (yh && yh[ticker] && yh[ticker].price !== undefined) ? yh[ticker].price : null;
-    } catch (e) {
-      resultado.rapidapiYahoo = 'erro: ' + e.message;
     }
   }
 
