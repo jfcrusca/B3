@@ -214,13 +214,19 @@ function diagnosticoCompleto() {
 
     // No Apps Script V8 o escopo global não é exposto em globalThis para vars/const
     // de outros arquivos; usamos typeof (que falha de forma segura para símbolos ausentes).
+    // 🔧 v10.1: `return` dentro do forEach interrompia a iteração SEM logar —
+    // apenas módulos ausentes no escopo global apareciam no relatório (no teste
+    // real, 1 de 12). Agora a verificação sempre loga, unindo as duas fontes.
     const escopoGlobal = (function () { return this; })() || {};
     modulosCriticos.forEach(mod => {
-      var existe = false;
-      if (typeof escopoGlobal[mod] !== 'undefined') return; // apenas para módulos realmente globais
+      let existe = false;
       try {
-        // eslint-disable-next-line no-new-func
-        existe = (new Function('return typeof ' + mod + " !== 'undefined';"))();
+        if (escopoGlobal && typeof escopoGlobal[mod] !== 'undefined') {
+          existe = true;
+        } else {
+          // eslint-disable-next-line no-new-func
+          existe = (new Function('return typeof ' + mod + " !== 'undefined';"))();
+        }
       } catch (_) { existe = false; }
       console.log(`  ${mod}: ${existe ? '✅' : '❌'} ${existe ? 'OK' : 'FALTANDO'}`);
     });
