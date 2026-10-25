@@ -1,24 +1,33 @@
 # Artefatos locais — não enviar ao Google Apps Script
 **/*.py
 **/*.txt
-**/analise_b3v10*/
-**/analise_b3v10_*/
+**/*.patch
 **/.clasp.json.bak
+
+# Saídas geradas por analisar_b3v10.py (relatórios datados e dumps)
+**/analise_b3v10*/
+relatorio_principal_b3v10.xlsx
+estatisticas_categorias.xlsx
+mapa_dependencias.png
+test_*.json
+
+# Harnesses de teste locais (Node) — não são código GAS (usam require/eval)
+scripts/
+
+# Templates/artefatos alheios ao projeto GAS
+copilot-SEI/**
 
 # Arquivos de documentação e regras (não enviar ao GAS)
 .clinerules
 DOCUMENTACAO_TECNICA.md
 MANUAL_DO_USUARIO.md
-TODO_AUDITORIA_CORRECOES.md
-todo_*.txt
-todo_*.md
+documentacao_fiscal_irpf.md
+**/*_REPORT.md
 
-# Arquivos JSON adicionais (não enviar)
-estrutura_completa_b3v10.json
-relatorio_principal_b3v10.xlsx
-estatisticas_categorias.xlsx
-
-node_modules/
+node_modules/**
 node_modules
 package.json
+package-lock.json
 jsconfig.json
+.claspignore
+.clinerules

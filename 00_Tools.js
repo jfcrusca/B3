@@ -57,18 +57,25 @@ const Tools = (function(){
     const cacheStatus = CacheService.getScriptCache().get("B3_V10_UNIFIED_SETTINGS") ? 'Ativo' : 'Vazio (Necessita Refresh)';
     Logger.info(`Status do Cache de Configurações: ${cacheStatus}`);
 
-    // Teste Yahoo IBOV
+    // Teste da fonte primária (BRAPI) — Yahoo Finance foi desativado (401/403)
     try {
-      const c = YahooFetcher.getHistory('IBOV','1d','3mo');
-      Logger.info(`Yahoo IBOV candles: ${c ? c.length : 0}`);
+      const c = (typeof DataService !== 'undefined' && DataService.getMarketData)
+        ? DataService.getMarketData('PETR4', '1d', '3mo')
+        : null;
+      const candles = (c && c.candles) ? c.candles : [];
+      Logger.info(`BRAPI PETR4 candles: ${candles.length}`);
     } catch(e) {
-      Logger.error(`Teste Yahoo falhou: ${e.message}`);
+      Logger.error(`Teste da fonte primária falhou: ${e.message}`);
     }
 
-    // Atualiza Dashboard para confirmar escrita
+    // Atualiza Dashboard para confirmar escrita (guardado: DashboardUI pode não existir)
     try {
-      DashboardUI.updateMarketOverview();
-      Logger.info('Dashboard atualizado.');
+      if (typeof DashboardUI !== 'undefined' && typeof DashboardUI.updateMarketOverview === 'function') {
+        DashboardUI.updateMarketOverview();
+        Logger.info('Dashboard atualizado.');
+      } else {
+        Logger.info('DashboardUI indisponível — atualização ignorada.');
+      }
     } catch(e){
       Logger.error(`Erro ao atualizar Dashboard: ${e.message}`);
     }
@@ -78,7 +85,6 @@ const Tools = (function(){
 
   return { clearLogs, runDiagnostics };
 })();
-``
 
 
 // Em 00_Tools.gs ou novo arquivo
@@ -188,31 +194,42 @@ function diagnosticoCompleto() {
       console.log(`  Cache: ⚠️ Erro: ${e.message}`);
     }
     
-    // 6. VERIFICAÇÃO DE MÓDULOS CRÍTICOS
+    // 6. VERIFICAÇÃO DE MÓDULOS CRÍTICOS (lista alinhada ao pipeline real v10)
     console.log('\n🧩 VERIFICAÇÃO DE MÓDULOS:');
     const modulosCriticos = [
-      'YahooFetcher', 'TechnicalIndicators', 'TechnicalStrategy', 
-      'EntryGenerator', 'AIApiUtils', 'DashboardUI', 'SheetWriter'
+      'DataService', 'BrapiFetcher', 'BolsaiFetcher', 'HGBrasilFetcher',
+      'MacroFetcher', 'AIEnsemble', 'ScorePolicy', 'OutputManager',
+      'PortfolioUnified', 'SheetManager', 'CONFIG', 'Logger'
     ];
-    
+
+    // No Apps Script V8 o escopo global não é exposto em globalThis para vars/const
+    // de outros arquivos; usamos typeof (que falha de forma segura para símbolos ausentes).
+    const escopoGlobal = (function () { return this; })() || {};
     modulosCriticos.forEach(mod => {
-      const existe = typeof globalThis[mod] !== 'undefined';
+      var existe = false;
+      if (typeof escopoGlobal[mod] !== 'undefined') return; // apenas para módulos realmente globais
+      try {
+        // eslint-disable-next-line no-new-func
+        existe = (new Function('return typeof ' + mod + " !== 'undefined';"))();
+      } catch (_) { existe = false; }
       console.log(`  ${mod}: ${existe ? '✅' : '❌'} ${existe ? 'OK' : 'FALTANDO'}`);
     });
-    
-    // 7. TESTE DE YAHOO FINANCE
-    console.log('\n🌐 TESTE DE CONEXÃO YAHOO:');
+
+    // 7. TESTE DE FONTE DE DADOS (BRAPI — fonte primária do pipeline)
+    // Yahoo Finance foi desativado (401/403) — ver regras do projeto.
+    console.log('\n🌐 TESTE DE CONEXÃO (FONTE PRIMÁRIA):');
     try {
-      if (typeof YahooFetcher !== 'undefined') {
-        const teste = YahooFetcher.getHistory('IBOV', '1d', '5d');
-        console.log(`  IBOV: ${teste ? `✅ ${teste.length} candles` : '❌ Falha'}`);
+      if (typeof DataService !== 'undefined' && typeof DataService.getMarketData === 'function') {
+        const teste = DataService.getMarketData('PETR4', '1d', '5d');
+        const qtd = teste && teste.candles ? teste.candles.length : 0;
+        console.log(`  PETR4: ${qtd > 0 ? `✅ ${qtd} candles` : '❌ Sem candles'}`);
       } else {
-        console.log('  YahooFetcher: ❌ Não disponível');
+        console.log('  DataService: ❌ Não disponível');
       }
     } catch (e) {
-      console.log(`  Yahoo: ⚠️ Erro: ${e.message}`);
+      console.log(`  DataService: ⚠️ Erro: ${e.message}`);
     }
-    
+
     // 8. VERIFICAÇÃO DE PROPRIEDADES (SEM VALORES SENSITIVOS)
     console.log('\n🔑 VERIFICAÇÃO DE CREDENCIAIS (Status):');
     const props = PropertiesService.getScriptProperties().getProperties();
@@ -240,11 +257,11 @@ function diagnosticoCompleto() {
       console.log('  • Configure a chave da API Gemini em Propriedades do Script');
     }
     
-    const tickers = SheetManager?.getTickers?.() || [];
+    const tickers = (typeof SheetManager !== 'undefined' && SheetManager.getTickers) ? SheetManager.getTickers() : [];
     if (tickers.length === 0) {
       console.log('  • Adicione tickers na aba "Tickers" (coluna G)');
     }
-    
+
     const sheetsMap = sheets.map(sh => sh.getName());
     if (!sheetsMap.includes('Resultados_Analise')) {
       console.log('  • Execute "Bootstrap.createSheets()" para criar todas as abas');

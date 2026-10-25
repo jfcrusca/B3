@@ -4,19 +4,29 @@
   "description": "",
   "main": "00_Core_Orchestrator.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "clean": "node scripts/clean-logs.js",
-    "deploy": "npm run clean && clasp push",
-    "deploy:force": "npm run clean && clasp push --force"
+    "test": "node scripts/_run-all.js",
+    "test:legacy": "echo Testes legados/frageis ficam em scripts/_legacy/ e nao rodam no npm test.",
+    "test:fiscal": "node scripts/test_calculo_fiscal.js",
+    "test:geometria": "node scripts/test_geometria_posicao.js",
+    "test:stop": "node scripts/test_stop_alvo_geometria.js",
+    "test:sentinela": "node scripts/test_sentinela_geometria.js",
+    "test:lock": "node scripts/test_lock_concorrencia.js",
+    "test:limpeza": "node scripts/test_limpeza_aba.js",
+    "test:config": "node scripts/test_core22_config.js",
+    "test:escritor": "node scripts/test_escritor_unico.js",
+    "test:blacklist": "node scripts/test_blacklist_cotacao.js",
+    "test:bdr": "node scripts/test_bdr_filter.js",
+    "diag:tempo": "node scripts/diag_tempo.js",
+    "test:all": "node scripts/_run-all.js",
+    "push": "clasp push",
+    "push:force": "clasp push --force"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "dependencies": {
-    "@types/google-apps-script": "^2.0.12"
-  },
   "devDependencies": {
+    "@types/google-apps-script": "^2.0.13",
     "husky": "^9.1.7"
   }
 }

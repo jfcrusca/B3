@@ -17,27 +17,9 @@ function ativarEnforcementProducao() {
 
 
 
-function executarAnaliseReal() {
-  console.log('🤖 EXECUTANDO ANÁLISE IA REAL');
-  
-  const ticker = 'PETR4';
-  const dadosTecnicos = {
-    price: 34.85,
-    setupType: 'Momentum Positivo',
-    volumeRelative: 1.8,
-    indicators: {
-      rsi: 65,
-      sma20: 33.50,
-      sma50: 32.80
-    },
-    comments: 'Rompeu resistência em 34.50 com volume acima da média'
-  };
-  
-  const resultado = AIApiUtils.analyzeOpportunity(ticker, dadosTecnicos);
-  console.log(`Análise ${ticker}: ${resultado}`);
-  
-  return resultado;
-}
+// [REMOVIDO] executarAnaliseReal(): função morta que chamava AIApiUtils (inexistente
+// no projeto) com dados de PETR4 fixos no código. Nenhuma referência em todo o projeto.
+// Para análise real, use o pipeline oficial (00_Core_Orchestrator / INPUT.runPipeline).
 
 
 

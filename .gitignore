@@ -1,0 +1,38 @@
+# =============================================================================
+# .gitignore — B3-v10 (projeto Google Apps Script / clasp)
+# Nada aqui sobe para o GAS nem deve ser versionado.
+# =============================================================================
+
+# Dependências Node (reinstaláveis via `npm ci`)
+node_modules/
+
+# Credenciais e configuração local do clasp
+.clasp.json
+.env
+.env.*
+*.bak
+
+# Artefatos gerados pelas ferramentas de análise (analisar_b3v10.py / concatenar_projeto.py)
+PROJETO_CONCATENADO.txt
+DOCUMENTACAO_GERADA.md
+documentacao_automatica.md
+estrutura_completa_b3v10.json
+mapa_dependencias.png
+estatisticas_categorias.xlsx
+relatorio_principal_b3v10.xlsx
+analise_b3v10_*/
+funcoes_duplicadas.txt
+modulos_criticos.txt
+sugestoes_organizacao.txt
+test_*.json
+
+# Patches e relatórios de correções já aplicadas
+*.patch
+*_REPORT.md
+todo_*.txt
+
+# Sistema operacional / editores
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
