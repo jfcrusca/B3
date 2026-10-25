@@ -4,6 +4,10 @@
  * ✅ v5: Lê da aba "Oportunidades" (única para o usuário) em vez de "Resultados_Analise".
  * ✅ Mapeamento de colunas sincronizado com 29_Oportunidades_Processor v5 (16 colunas).
  * ✅ INTEGRADO: Position Sizing baseado no Risco por Trade (2%).
+ * 🔧 v12.8: (a) descarta trades com stop >= preço (geometria inválida para compra);
+ *           (b) Position Sizing SEM Math.abs; (c) teto por trade (25%) e teto
+ *           AGREGADO da carteira teórica (95%) para não ultrapassar o capital.
+ *           Configurável via RANKER_MAX_TRADE_ALLOCATION / RANKER_MAX_TOTAL_ALLOCATION.
  */
 
 function PROCESSAR_CARTEIRA_FINAL() {
@@ -37,16 +41,26 @@ function PROCESSAR_CARTEIRA_FINAL() {
   };
 
   // =========================================================================
-  // 2. MAPEAMENTO DE COLUNAS (Aba Oportunidades v5 — 16 colunas)
+  // 2. MAPEAMENTO DE COLUNAS (Aba Oportunidades v7 — 19 colunas)
   // =========================================================================
   var COL = {
     DATA: 0, TICKER: 1, PRECO: 2, ENTRADA: 3, STOP: 4,
     ALVO1: 5, ALVO2: 6, RR: 7, RISCO: 8, RECOMENDACAO: 9,
-    SCORE: 10, SETUP: 11, TIPO_SETUP: 12, ANALISE_TEC: 13, ANALISE_IA: 14, OBS: 15
+    SCORE: 10, SETUP: 11, TIPO_SETUP: 12, ANALISE_TEC: 13, ANALISE_IA: 14, OBS: 15,
+    FORCA_RELATIVA: 16,          // 🔧 v13.2
+    ALVO_PCT_ENTRADA: 17,        // 🔧 v14.5
+    ALVO_PCT_COTACAO: 18         // 🔧 v14.5
   };
 
-  // Leitura dos dados (16 colunas)
-  var data = origem.getRange(2, 1, origem.getLastRow() - 1, 16).getValues();
+  // 🔧 v14.5: lê 19 colunas (17 originais + Alvo % Entrada + Alvo % Cotação).
+  // Se a aba ainda tiver apenas 17 colunas (layout antigo), cai para 17 e o
+  // Position Sizing continua funcionando — apenas as colunas novas ficam vazias.
+  var nCols = Math.max(17, Math.min(19, origem.getLastColumn()));
+  var data = origem.getRange(2, 1, origem.getLastRow() - 1, nCols).getValues();
+  if (nCols < 19) {
+    console.log('ℹ️ [Ranker] Aba Oportunidades com ' + nCols +
+      ' colunas (layout antigo). Rode o Scanner para gerar as colunas "Alvo %".');
+  }
 
   var CFG = {
     RESUMO_SHEET: "Resumo_Trades_Aprovados",
@@ -57,6 +71,11 @@ function PROCESSAR_CARTEIRA_FINAL() {
   }
   CFG.RESUMO_SHEET = _cfg('RANKER_RESUMO_SHEET', CFG.RESUMO_SHEET);
   CFG.RISK_LEVEL = Number(_cfg('RANKER_RISK_LEVEL', _cfg('RISCO_POR_TRADE', CFG.RISK_LEVEL)));
+  // 🔧 v12.8: tetos de alocação (por trade e agregado da carteira teórica)
+  CFG.MAX_TRADE_ALLOCATION = Number(_cfg('RANKER_MAX_TRADE_ALLOCATION', 0.25));
+  CFG.MAX_TOTAL_ALLOCATION = Number(_cfg('RANKER_MAX_TOTAL_ALLOCATION', 0.95));
+  if (!(CFG.MAX_TRADE_ALLOCATION > 0 && CFG.MAX_TRADE_ALLOCATION <= 1)) CFG.MAX_TRADE_ALLOCATION = 0.25;
+  if (!(CFG.MAX_TOTAL_ALLOCATION > 0 && CFG.MAX_TOTAL_ALLOCATION <= 1)) CFG.MAX_TOTAL_ALLOCATION = 0.95;
 
   // =========================================================================
   // 3. CAPITAL TOTAL
@@ -93,15 +112,56 @@ function PROCESSAR_CARTEIRA_FINAL() {
     var score = Number(r[COL.SCORE]) || 0;
     var stop = Number(r[COL.STOP]) || 0;
     var entrada = Number(r[COL.ENTRADA]) || preco;
-    var distStop = Math.abs(preco - stop);
+    var alvo1 = Number(r[COL.ALVO1]) || 0;
+    var alvo2 = Number(r[COL.ALVO2]) || 0;
 
-    // Position Sizing (quantidade baseada no risco)
+    // 🔧 CORREÇÃO v12.8: descarta trades com geometria inválida para COMPRA
+    // (stop >= preço). Um Math.abs(preco - stop) mascararia a inversão e
+    // calcularia um position size errado (caso AXIA3: stop 57,19 > preço 54,80).
+    if (preco <= 0 || stop <= 0 || stop >= preco) {
+      console.warn("⚠️ [Ranker] " + ticker + ": geometria inválida para compra (stop=" + stop +
+        " >= preco=" + preco + ") — trade descartado.");
+      continue;
+    }
+
+    // =====================================================================
+    // 🔧 v14.5: GEOMETRIA CENTRALIZADA (28_Position_Geometry)
+    // ---------------------------------------------------------------------
+    // Antes: `distStop = preco - stop` era usado no sizing, mas o campo `rr`
+    // exibido vinha do analisador (medido contra a ENTRADA Fibo). Duas bases
+    // diferentes → tamanho da posição incoerente com o R/R anunciado.
+    // Agora risco, R/R e quantidade compartilham a MESMA base (preço atual).
+    // =====================================================================
+    var geo = (typeof PositionGeometry !== 'undefined')
+      ? PositionGeometry.calcular({
+          precoAtual: preco,
+          entradaIdeal: entrada,
+          stop: stop,
+          alvo1: alvo1,
+          alvo2: alvo2
+        })
+      : null;
+
+    // Position Sizing coerente (mesma base do risco exibido)
+    var distStop = preco - stop; // stop sempre abaixo do preço (validado acima)
     var qtd = 0;
-    if (distStop > 0 && preco > 0) {
+    var riscoRsDaPosicao = 0;
+    if (typeof PositionGeometry !== 'undefined') {
+      var dim = PositionGeometry.dimensionar({
+        capital: capital,
+        riscoPctAlvo: CFG.RISK_LEVEL,
+        precoReferencia: preco,
+        stop: stop,
+        maxTradeAlloc: CFG.MAX_TRADE_ALLOCATION,
+        maxTotalAlloc: CFG.MAX_TOTAL_ALLOCATION
+      });
+      qtd = dim.quantidade;
+      riscoRsDaPosicao = dim.riscoRS;
+    } else if (distStop > 0 && preco > 0) {
       qtd = Math.floor((capital * CFG.RISK_LEVEL) / distStop);
-      if ((qtd * preco) > (capital * 0.25)) {
-        qtd = Math.floor((capital * 0.25) / preco);
-      }
+      var maxQtdTrade = Math.floor((capital * CFG.MAX_TRADE_ALLOCATION) / preco);
+      if (qtd > maxQtdTrade) qtd = maxQtdTrade;
+      riscoRsDaPosicao = qtd * distStop;
     }
 
     // STATUS baseado na recomendação + score
@@ -110,16 +170,32 @@ function PROCESSAR_CARTEIRA_FINAL() {
     var setup = String(r[COL.SETUP] || "");
     var estrategia = String(r[COL.TIPO_SETUP] || "");
 
+    // 🔧 v14.5: avisa quando a entrada ideal já foi ultrapassada — o usuário
+    // precisa saber que o R/R anunciado é da geometria, não da execução dele.
+    if (geo && geo.entradaAtrasada) {
+      console.log("   ⚠️ [Ranker] " + ticker + ": preço +" +
+        (geo.atrasoPct * 100).toFixed(1) + "% acima da zona de compra. R/R real " +
+        geo.rr.toFixed(2) + " (geometria " + geo.rrAnalisador.toFixed(2) + ").");
+    }
+
     trades.push({
       status: status,
       ticker: ticker,
       preco: preco,
       fibo: entrada,          // "Entrada Sugerida" faz o papel do FIBO
       stop: stop,
-      alvo: Number(r[COL.ALVO1]) || 0,
+      alvo: alvo1,
       qtd: qtd,
       alocacao: capital > 0 ? (qtd * preco) / capital : 0,
-      rr: Number(r[COL.RR]) || 0,
+      // 🔧 v14.5: R/R coerente (mesma base do risco) + R/R da geometria original
+      rr: geo ? geo.rr : (Number(r[COL.RR]) || 0),
+      rrGeometria: geo ? geo.rrAnalisador : (Number(r[COL.RR]) || 0),
+      riscoRs: riscoRsDaPosicao,
+      zonaCompra: geo ? geo.zonaCompra : null,
+      dentroDaZona: geo ? geo.dentroDaZona : null,
+      atrasoPct: geo ? geo.atrasoPct : 0,
+      alvo1PctAtual: geo ? geo.alvo1PctAtual : 0,
+      alvo2PctAtual: geo ? geo.alvo2PctAtual : 0,
       score: score,
       setup: setup,
       setor: SECTOR_MAP[ticker] || "Outros",
@@ -132,6 +208,56 @@ function PROCESSAR_CARTEIRA_FINAL() {
   trades = trades.filter(function(t) { 
     return t.score >= 50 && (t.status === "🚀 COMPRAR" || t.status === "🔭 RADAR"); 
   });
+
+  // =========================================================================
+  // 5.1 v12.8: TETO AGREGADO DE ALOCAÇÃO (carteira teórica ≤ X% do capital)
+  // -------------------------------------------------------------------------
+  // Os trades já vêm ordenados por SCORE desc. Consumimos capital na ordem de
+  // prioridade; quando o próximo trade não couber, ele é TRIMADO (reduz a qtd
+  // para caber no restante) ou descartado se o restante for insuficiente.
+  // Evita que a soma das alocações ultrapasse 100% do capital.
+  // =========================================================================
+  var maxTotalValue = capital * CFG.MAX_TOTAL_ALLOCATION;
+  var valorAlocado = 0;
+  var tradesCapados = [];
+  var tradesDescartados = [];
+
+  for (var j = 0; j < trades.length; j++) {
+    var tj = trades[j];
+    var valorTrade = tj.qtd * tj.preco;
+
+    if (valorTrade <= 0) { continue; }
+
+    if (valorAlocado + valorTrade <= maxTotalValue) {
+      // Cabe integralmente
+      valorAlocado += valorTrade;
+      tradesCapados.push(tj);
+    } else {
+      // Não cabe: tenta TRIMAR a quantidade para caber no restante
+      var restante = maxTotalValue - valorAlocado;
+      var qtdCabivel = Math.floor(restante / tj.preco);
+      if (qtdCabivel > 0) {
+        tj.qtd = qtdCabivel;
+        tj.alocacao = capital > 0 ? (qtdCabivel * tj.preco) / capital : 0;
+        valorAlocado += qtdCabivel * tj.preco;
+        tradesCapados.push(tj);
+        console.log("   ✂️ [Ranker] " + tj.ticker + ": qtd reduzida para " + qtdCabivel +
+          " (teto agregado de " + (CFG.MAX_TOTAL_ALLOCATION * 100).toFixed(0) + "% do capital)");
+      } else {
+        tradesDescartados.push(tj.ticker);
+      }
+    }
+  }
+
+  if (tradesDescartados.length > 0) {
+    console.warn("   ⚠️ [Ranker] " + tradesDescartados.length + " trade(s) descartado(s) por teto agregado: " +
+      tradesDescartados.join(", "));
+  }
+  console.log("   💼 [Ranker] Alocação total: R$ " + valorAlocado.toFixed(2) +
+    " / R$ " + capital.toFixed(2) + " (" + (capital > 0 ? (valorAlocado / capital * 100).toFixed(1) : 0) +
+    "%) | Trades na carteira: " + tradesCapados.length + "/" + trades.length);
+
+  trades = tradesCapados;
 
   // =========================================================================
   // 6. ESCREVER TABELA RANKER
@@ -263,10 +389,27 @@ function _escreverTabelaRanker(ss, trades, sheetName) {
     
     for (var i = 0; i < trades.length; i++) {
       var t = trades[i];
+      // 🔧 v14.5: a coluna ALVO agora mostra o ALVO 1 e, ao lado (ESTRATÉGIA),
+      // o retorno REAL até ele a partir da COTAÇÃO — que é o número que importa
+      // para quem entra hoje. Quando o preço está fora da zona, o aviso aparece
+      // no início da ESTRATÉGIA para não passar batido.
+      var avisoZona = '';
+      if (t.dentroDaZona === false && t.atrasoPct > 0) {
+        avisoZona = '⚠️ FORA DA ZONA (+' + (t.atrasoPct * 100).toFixed(1) + '%) · ';
+      }
+      var retornoReal = (t.alvo1PctAtual > 0)
+        ? 'Alvo1 a +' + (t.alvo1PctAtual * 100).toFixed(1) + '% da cotação · '
+        : '';
+      var rrTexto = 'R/R ' + (t.rr || 0).toFixed(2);
+      if (t.rrGeometria && Math.abs(t.rrGeometria - t.rr) > 0.05) {
+        rrTexto += ' (geom. ' + t.rrGeometria.toFixed(2) + ')';
+      }
+
       rows.push([
         agora, t.status, t.ticker, t.setor, t.setup, t.preco,
         t.fibo, t.stop, t.alvo, t.qtd, t.alocacao, t.rr, t.score,
-        t.estrategia || ''
+        avisoZona + retornoReal + rrTexto +
+          (t.estrategia ? ' · ' + t.estrategia : '')
       ]);
     }
 

@@ -1,7 +1,7 @@
 /******************************************************************************
 // 📦 MÓDULO/ARQUIVO: 07_AI_Unified_Connector.js
 // 🛠️  TECNOLOGIA: JAVASCRIPT
-// 📌  VERSÃO: 3.4 — DEEPSEEK + FALLBACK COMPLETO RESILIENTE
+// 📌  VERSÃO: 5.0 — GEMINI 3.x (thinkingConfig.thinkingLevel) + DEPRECAÇÕES AI STUDIO
 /******************************************************************************/
 
 /**
@@ -17,10 +17,29 @@
  */
 
 const AI_Config = {
+  // 🔧 v5.0 (migração Gemini 3.x): modelo padrão alinhado ao DEFAULTS do CONFIG
+  // e ao default da aba "Configurações". Série 3.x exige thinking_level
+  // (em generationConfig.thinkingConfig) e REJEITA temperature/topP/topK.
   DEFAULT_MODEL: "gemini-3.1-flash-lite",
-  ADVANCED_MODEL: "gemini-3.5-flash",
+  ADVANCED_MODEL: "gemini-3.5-flash-lite",
+  // Nível de raciocínio padrão para o Gemini 3.x: "minimal" | "low" | "medium" | "high"
+  DEFAULT_THINKING_LEVEL: "low",
+  // Níveis aceitos pela API — qualquer valor fora desta lista é descartado
+  // (o modelo usa o default) para evitar erro 400 INVALID_ARGUMENT.
+  VALID_THINKING_LEVELS: ["minimal", "low", "medium", "high"],
   MAX_RETRIES: 2,
-  TIMEOUT_MS: 30000
+  TIMEOUT_MS: 30000,
+
+  /**
+   * Normaliza o nível de raciocínio para um valor aceito pela API Gemini 3.x.
+   * Valores inválidos (ou vazios) → fallback para o default.
+   * @param {string} level Valor desejado ("minimal" | "low" | "medium" | "high").
+   * @returns {string} Nível validado.
+   */
+  normalizeThinkingLevel(level) {
+    const v = String(level || '').trim().toLowerCase();
+    return this.VALID_THINKING_LEVELS.indexOf(v) !== -1 ? v : this.DEFAULT_THINKING_LEVEL;
+  }
 };
 
 class AI_Connector {
@@ -114,7 +133,20 @@ class AI_Connector {
 
   static buildGeminiRequest(prompt, options = {}) {
     const model = options.model || (typeof CONFIG !== 'undefined' ? CONFIG.get('GEMINI_MODEL') : AI_Config.DEFAULT_MODEL);
-    const temperature = options.temperature !== undefined ? options.temperature : 0.2;
+
+    // 🔧 v5.0 (Gemini 3.x — AUDITORIA AI STUDIO 2026):
+    //   • 'temperature'/'topP'/'topK' → DEPRECIADOS. No Gemini 3.6+ já não têm
+    //     efeito e nos modelos futuros RETORNAM ERRO 400 se enviados. Ignorados aqui.
+    //   • 'thinkingLevel' → NÃO é campo de topo do payload (erro 400:
+    //     'Unknown name "thinkingLevel"'). Deve ir DENTRO de
+    //     generationConfig.thinkingConfig.thinkingLevel.
+    //     Valores válidos: "minimal" | "low" | "medium" | "high".
+    //   • 'thinking_budget' → REMOVIDO/descontinuado (não usar).
+    const thinkingLevel = AI_Config.normalizeThinkingLevel(
+      options.thinkingLevel
+      || (typeof CONFIG !== 'undefined' ? CONFIG.get('GEMINI_THINKING_LEVEL') : null)
+      || AI_Config.DEFAULT_THINKING_LEVEL
+    );
 
     let apiKey;
     try {
@@ -133,9 +165,14 @@ class AI_Connector {
     const payload = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: temperature,
+        // ⚠️ v5.0: NÃO adicionar temperature/topP/topK (depreciados/rejeitados).
+        // ⚠️ 'thinking_budget' foi descontinuado — usar thinkingConfig.thinkingLevel.
         maxOutputTokens: 1024,
-        response_mime_type: options.jsonMode ? "application/json" : "text/plain"
+        responseMimeType: options.jsonMode ? "application/json" : "text/plain",
+        // 🔧 v5.0: thinkingLevel deve ficar ANINHADO em thinkingConfig (não no topo).
+        thinkingConfig: {
+          thinkingLevel: thinkingLevel
+        }
       }
     };
 
@@ -168,7 +205,6 @@ class AI_Connector {
 
   static callGemini(prompt, options = {}) {
     const model = options.model || (typeof CONFIG !== 'undefined' ? CONFIG.get('GEMINI_MODEL') : AI_Config.DEFAULT_MODEL);
-    const temperature = options.temperature !== undefined ? options.temperature : 0.2;
 
     const request = this.buildGeminiRequest(prompt, options);
     if (!request) {
@@ -544,7 +580,7 @@ function TESTAR_CONEXAO_GEMINI() {
   // 3. Teste de geração de conteúdo (POST generateContent)
   console.log("\n2️⃣ Testando POST generateContent...");
   try {
-    const model = (typeof CONFIG !== 'undefined' && CONFIG.get('GEMINI_MODEL')) || "gemini-2.0-flash-lite";
+    const model = (typeof CONFIG !== 'undefined' && CONFIG.get('GEMINI_MODEL')) || "gemini-3.1-flash-lite";
     let resGer = UrlFetchApp.fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
       {

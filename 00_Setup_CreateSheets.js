@@ -43,13 +43,17 @@ var Bootstrap = (function () {
 
   function setupResumoTrades(ss, opts) {
     const sh = ensureSheet(ss, 'Resumo_Trades_Aprovados');
+    // 🔧 CORREÇÃO v12.8: cabeçalho do PAINEL alinhado com o layout REAL gravado
+    // por 41_Ranker.js (linha 1 = título, linhas 2-5 = glossário, linha 6 =
+    // cabeçalho, dados a partir da linha 7). Antes, esta função criava um
+    // cabeçalho de 10 colunas divergente do Ranker (tabela em linha 1).
+    sh.getRange("A1:N1").merge().setValue("CARTEIRA RECOMENDADA B3-V10 (SMART HOLD) — PAINEL DE INTELIGÊNCIA");
     const headers = [
-      "Data", "Ticker", "Setup", "Preço Entrada", "Stop Loss", "Alvo", 
-      "Risco %", "Score", "Status", "Resultado Final"
+      "DATA/HORA", "STATUS", "TICKER", "SETOR", "SETUP", "PREÇO ATUAL",
+      "ENTRADA FIBO", "STOP", "ALVO", "QTD", "ALOCAÇÃO %", "R/R", "SCORE", "ESTRATÉGIA"
     ];
-    setHeaders(sh, headers, opts);
-    sh.getRange("A:A").setNumberFormat("dd/MM/yyyy");
-    sh.getRange("D:F").setNumberFormat("R$ #,##0.00");
+    sh.getRange(6, 1, 1, headers.length).setValues([headers]);
+    sh.setFrozenRows(6);
     return sh;
   }
 
@@ -78,17 +82,37 @@ var Bootstrap = (function () {
     return sh;
   }
 
+  /**
+   * setupCarteira — garante a aba 'Carteira' com o cabeçalho REAL (A..T / 20 colunas).
+   * 🔧 v12.8: IDEMPOTENTE — se a aba já tiver dados (linha 1 preenchida), NÃO
+   * sobrescreve o cabeçalho/layout do usuário (evita destruir fórmulas da coluna H).
+   * Layout: A Tipo | B Papel | C Qtd | D Valor Líquido | E 1ª Compra | F Última Compra
+   *         G Preço Médio Ordem | H Cotação Atual | I Lucro/Prejuízo | J Proventos
+   *         K Lucro/Prejuízo % | L Participação na Carteira | M 🤖 SUGESTÃO
+   *         N 🛑 STOP IDEAL | O 🎯 ALVO IDEAL | P 🛡️ SEU STOP (OCO) | Q 🏁 ALVO 1 (50%)
+   *         R 🏁 ALVO 2 (50%) | S 📊 ALVO MÉDIO | T 💸 RISCO R$
+   */
   function setupCarteira(ss, opts) {
     const sh = ensureSheet(ss, 'Carteira');
     const headers = [
       'Tipo','Papel','Qtd','Valor Líquido','1ª Compra','Última Compra',
-      'Preço Médio','Cotação Atual','Lucro/Prejuízo','Proventos',
-      'Lucro/Prejuízo %','Participação %','Status','Ação Sugerida','Atualização'
+      'Preço Médio Ordem','Cotação Atual','Lucro/Prejuízo','Proventos',
+      'Lucro/Prejuízo %','Participação na Carteira','🤖 SUGESTÃO','🛑 STOP IDEAL',
+      '🎯 ALVO IDEAL','🛡️ SEU STOP (OCO)','🏁 ALVO 1 (50%)','🏁 ALVO 2 (50%)',
+      '📊 ALVO MÉDIO','💸 RISCO R$'
     ];
-    setHeaders(sh, headers, opts);
+    // 🔧 Só define o cabeçalho se a aba estiver VAZIA (protege o layout do usuário).
+    const cabeçalhoVazio = sh.getLastRow() < 1 ||
+      sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].join('').trim() === '';
+    if (cabeçalhoVazio) {
+      setHeaders(sh, headers, opts);
+    } else {
+      console.log("ℹ️ [Setup] Aba 'Carteira' já possui cabeçalho — preservado (idempotente).");
+    }
     sh.getRange("D:D").setNumberFormat("R$ #,##0.00");
     sh.getRange("G:J").setNumberFormat("R$ #,##0.00");
     sh.getRange("K:L").setNumberFormat("0.00%");
+    sh.getRange("N:T").setNumberFormat("R$ #,##0.00");
     return sh;
   }
 
@@ -147,13 +171,13 @@ var Bootstrap = (function () {
   // ... (Mantém as outras funções padrão: Tickers, Resultados, etc.) ...
   function setupResultadosAnalise(ss, opts) {
     const sh = ensureSheet(ss, 'Resultados_Analise');
-    // 🔧 CORREÇÃO v10.2: HEADER única alinhada com 08_Output_Unified (26 colunas).
+    // 🔧 v13.2: HEADER única alinhada com 08_Output_Unified (27 colunas).
     const headers = [
       "Data", "Ticker", "Preço", "Score", "Setup", "Motivo", "Stop Loss",
       "Alvo 1", "Alvo 2", "R/R", "Risco %", "RSI", "EMA21", "EMA50",
       "EMA200", "ATR", "Volume", "Pivot", "Fibonacci", "Análise IA",
       "Ranking", "Tipo Setup", "Alerta Segurança",
-      "Topo50", "GanhoRapido%", "DistTopo%"
+      "Topo50", "GanhoRapido%", "DistTopo%", "Força Rel. %"
     ];
     setHeaders(sh, headers, opts);
     return sh;
@@ -162,9 +186,11 @@ var Bootstrap = (function () {
   function setupOportunidades(ss, opts) {
     const sh = ensureSheet(ss, 'Oportunidades');
     const headers = [
-      'Data', 'Ticker', 'Preço Atual', 'Entrada Sugerida', 'Stop Loss',
+      'Data', 'Ticker', 'Preço Atual', 'Entrada Sugerida (Fibo/Cotação)', 'Stop Loss',
       'Alvo 1', 'Alvo 2', 'R/R', 'Risco %', 'Recomendação',
-      'Score', 'Setup', 'Tipo Setup', 'Análise Técnica', 'Análise IA', 'Observações'
+      'Score', 'Setup', 'Tipo Setup', 'Análise Técnica', 'Análise IA', 'Observações',
+      // 🔧 v14.5: retorno REAL do Alvo 1 nas duas bases de preço (entrada vs cotação)
+      'Alvo % (Entrada)', 'Alvo % (Cotação)'
     ];
     setHeaders(sh, headers, opts);
     return sh;
@@ -229,6 +255,8 @@ var Bootstrap = (function () {
     ensureSheet(ss, 'Portfolio');
     ensureSheet(ss, 'IRPF_Resumo_Anual');
     ensureSheet(ss, 'DARF_Mensal');
+    // 🔧 v1.1: aba de histórico do diagnóstico de oportunidade perdida (série temporal)
+    ensureSheet(ss, 'Diag_Oportunidade_Hist');
 
     SpreadsheetApp.flush();
   }

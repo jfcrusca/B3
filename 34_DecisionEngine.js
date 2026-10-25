@@ -2,6 +2,17 @@
 // MODULO/ARQUIVO: 34_DecisionEngine.js
 // TECNOLOGIA: JAVASCRIPT (V8 / Google Apps Script)
 // FINALIDADE: Veredito unico para score, vetos e auditoria de decisoes.
+// v10.3 (B2): scoreFinal passa a usar a POLITICA UNICA (09_ScorePolicy):
+//   final = tecnico + ajusteIA_limitado(±cap). Elimina o 3º blend divergente
+//   (0.7*tech + 0.3*ia) que gerava scores diferentes para o mesmo ativo.
+// v10.3 (B7): REGIME MACRO com FONTE UNICA = multiplicador no Orchestrator.
+//   Removido o veto/rejeicao redundante por macroRegime aqui (evitava dupla
+//   penalidade BEARISH/DEFENSIVE). Permanece apenas o veto pelo sentimento
+//   proprio do ativo (noticia/NLP). Macro segue registrado na auditoria.
+// v10.4 (B10): ESTE E O PONTO UNICO DE CONSOLIDACAO DO AJUSTE DE IA.
+//   O `op.score` que entra aqui e o TECNICO PURO (o 08_AI_Ensemble nao embute
+//   mais a IA do lote em op.score). Assim a IA e aplicada UMA UNICA VEZ
+//   (via ScorePolicy.consolidar), eliminando a dupla contagem batch+deep.
 /******************************************************************************/
 
 var DecisionEngine = (function () {
@@ -266,10 +277,11 @@ var DecisionEngine = (function () {
     var flexApplied = false;
 
     if (hardVeto || dynamicVeto) {
-      // 🔧 CORREÇÃO v11: BEARISH com macro BEARISH agora é VETO DIRETO
-      // Antes: penalty de -10 apenas, que era insuficiente para bloquear
-      // Agora: se sentimento BEARISH e macro BEARISH → veto direto (não compensa)
-      // Flex aplicado apenas se sentimento CAUTELA com suporte técnico forte
+      // [B7 v10.3] REGIME MACRO NAO VETA AQUI — FONTE UNICA DE VERDADE.
+      // ANTES: macro penalizado DUAS vezes (multiplicador no Orchestrator
+      // analise.score *= macroAdjustment E veto/rejeicao por macroRegime aqui).
+      // AGORA: macro entra so pelo multiplicador; aqui resta so o veto pelo
+      // sentimento PROPRIO do ativo (noticia/NLP). Macro vai so na auditoria.
       flexApplied = false;
       
       if (hardVeto) {
@@ -277,11 +289,6 @@ var DecisionEngine = (function () {
         return _reject(ctx, 'Sentimento critico: ' + sentiment + '. Veto absoluto.', scoreAfterMemory, sentiment, 'SENTIMENT_HARD_VETO');
       }
       
-      if (macroRegime === 'BEARISH' && sentiment === 'BEARISH') {
-        // ⛔ V11: BEARISH + macro BEARISH = veto direto
-        // Penalidade de -10 era insuficiente para bloquear trades ruins
-        return _reject(ctx, 'Sentimento BEARISH confirmado por macro BEARISH. Veto de risco.', scoreAfterMemory, sentiment, 'SENTIMENT_MACRO_VETO');
-      }
       
       // Flex só se aplica para CAUTELA com score técnico alto + ADX forte
       if (sentiment === 'CAUTELA') {
@@ -295,13 +302,15 @@ var DecisionEngine = (function () {
         hardVeto: hardVeto,
         dynamicVeto: dynamicVeto,
         flexApplied: flexApplied,
-        macroRegime: macroRegime,
+        macroRegime: macroRegime,        // [B7] informativo: macro ja refletido no score
+        macroAppliedViaScore: true,      // [B7] macro entrou pelo multiplicador (sem dupla contagem)
         adx: adx,
         motivo: flexApplied ? 'Flex aplicado para CAUTELA com suporte técnico' : 'Veto aplicado'
       });
 
       if (!flexApplied) {
-        var motivoSentimento = 'Sentimento desfavoravel: ' + sentiment + ' em regime ' + macroRegime;
+        var motivoSentimento = 'Sentimento desfavoravel do ativo: ' + sentiment +
+          ' (regime macro ' + macroRegime + ' ja refletido no score).';
         return _reject(ctx, motivoSentimento, scoreAfterMemory, sentiment, 'SENTIMENT');
       }
 
@@ -325,10 +334,38 @@ var DecisionEngine = (function () {
         " (preço em timing ruim de entrada — extensão " + (extensaoPct * 100).toFixed(1) + "%, topo/próx. topo, ou ganho rápido — reduzindo bônus pró-cíclico)");
     }
     var scoreAfterSentiment = _clampScore(scoreAfterMemory + bonus);
-    var aiScore = analise && typeof analise.ai_score === 'number' ? _clampScore(analise.ai_score) : scoreAfterSentiment;
-    var pesoTecnico = Number(_cfg(flexApplied ? 'DECISION_FLEX_TECH_WEIGHT' : 'DECISION_TECH_WEIGHT', flexApplied ? 0.8 : 0.7));
-    var pesoIA = Number(_cfg(flexApplied ? 'DECISION_FLEX_AI_WEIGHT' : 'DECISION_AI_WEIGHT', flexApplied ? 0.2 : 0.3));
-    var scoreFinal = _clampScore(scoreAfterSentiment * pesoTecnico + aiScore * pesoIA);
+
+    // =====================================================================
+    // 🔧 B2 (v22.17): SCORE CANÔNICO ÚNICO (09_ScorePolicy)
+    // ---------------------------------------------------------------------
+    // ANTES: scoreFinal = scoreAfterSentiment*0.7 + aiScore*0.3 — um TERCEIRO
+    // blend que divergia do ensemble (08) e do técnico (22), gerando 3 números
+    // diferentes para o mesmo ativo. AGORA: um único ponto de consolidação.
+    //   final = técnico + ajusteIA_limitado(±cap)
+    // A IA é MODIFICADOR, não 30% do peso. O `aiScore` permanece = IA crua.
+    // =====================================================================
+    var aiScore = (analise && typeof analise.ai_score === 'number')
+      ? _clampScore(analise.ai_score)
+      : null; // null quando a IA não forneceu score (não vira técnico disfarçado)
+
+    var pacoteScore;
+    if (typeof ScorePolicy !== 'undefined' && typeof ScorePolicy.consolidar === 'function') {
+      pacoteScore = ScorePolicy.consolidar(scoreAfterSentiment, aiScore);
+    } else {
+      // Fallback inline idêntico à política (defesa se o 09_ não carregar).
+      var _neutro = 50, _cap = 15, _peso = 0.30;
+      var _ajuste = (aiScore === null) ? 0
+        : Math.round(Math.min(_cap, Math.max(-_cap, (aiScore - _neutro) * _peso)));
+      pacoteScore = {
+        scoreFinal: _clampScore(scoreAfterSentiment + _ajuste),
+        scoreTecnico: scoreAfterSentiment,
+        scoreIA: aiScore,
+        ajusteIA: _ajuste,
+        origemIA: (aiScore === null) ? 'FALLBACK' : 'IA'
+      };
+    }
+
+    var scoreFinal = pacoteScore.scoreFinal;
     var motivoIA = (analise && analise.rationale) ? analise.rationale : '';
 
     ctx.auditTrail.push({
@@ -338,11 +375,14 @@ var DecisionEngine = (function () {
       sentiment: sentiment,
       sentimentBonus: bonus,
       scoreAfterSentiment: scoreAfterSentiment,
-      aiScore: aiScore,
+      aiScore: (aiScore === null ? 'n/a' : aiScore),
+      ajusteIA: pacoteScore.ajusteIA,
       scoreFinal: scoreFinal
     });
 
-    if (analise && analise.decision === 'AGUARDAR' && aiScore < 20 && scoreAfterSentiment < 70) {
+    // 🔧 B2: só avalia veto da IA quando ela REALMENTE forneceu score numérico
+    // (aiScore pode ser null quando a IA não respondeu — null < 20 seria true por coerção).
+    if (analise && analise.decision === 'AGUARDAR' && typeof aiScore === 'number' && aiScore < 20 && scoreAfterSentiment < 70) {
       return _reject(ctx, 'IA vetou o trade: ' + motivoIA, scoreFinal, sentiment, 'AI');
     }
 
@@ -382,7 +422,11 @@ var DecisionEngine = (function () {
     // 🔧 CORREÇÃO v6: Não usa rationale do AIEnsemble quando o DecisionEngine aprova
     // O AIEnsemble pode ter rejeitado (ex: "Score 51 abaixo do limite 65") mas o
     // DecisionEngine aprovou com score final diferente. O rationale deve refletir a decisão real.
-    var motivoFinal = 'Score tecnico ' + scoreAfterSentiment + ' + IA ' + aiScore + ' = ' + scoreFinal + ' | Sentimento: ' + sentiment;
+    // 🔧 B2: motivo canônico único (coerente com 09_ScorePolicy.consolidar).
+    var motivoFinal = 'Score tecnico ' + scoreAfterSentiment +
+      ' ' + (pacoteScore.ajusteIA >= 0 ? '+' : '') + pacoteScore.ajusteIA +
+      ' (IA ' + (aiScore === null ? 'n/a' : aiScore) + ') = ' + scoreFinal +
+      ' | Sentimento: ' + sentiment;
     ctx.auditTrail.push({
       stage: 'FINAL',
       status: 'APPROVED',

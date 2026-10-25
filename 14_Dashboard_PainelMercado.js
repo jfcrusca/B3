@@ -61,10 +61,12 @@ var DashboardUI = (function () {
       let lucroTotal = 0;
       let riscoTotal = 0;
 
+      // 🔧 v12.8: índices alinhados ao cabeçalho real da aba 'Carteira':
+      //   C=Qtd(2), H=Cotação Atual(7), I=Lucro/Prejuízo(8), T=RISCO R$(19)
       for(let i = 1; i < dataC.length; i++) {
-        totalAtual += (parseFloat(dataC[i][2]) * parseFloat(dataC[i][7])) || 0; // Qtd * Cotação
-        lucroTotal += parseFloat(dataC[i][8]) || 0; // Col I
-        riscoTotal += parseFloat(dataC[i][19]) || 0; // Col T (Risco R$)
+        totalAtual += (parseFloat(dataC[i][2]) * parseFloat(dataC[i][7])) || 0; // C(Qtd) * H(Cotação)
+        lucroTotal += parseFloat(dataC[i][8]) || 0; // I (Lucro/Prejuízo)
+        riscoTotal += parseFloat(dataC[i][19]) || 0; // T (RISCO R$)
       }
       kpiCarteira = [totalAtual, lucroTotal, riscoTotal];
     }

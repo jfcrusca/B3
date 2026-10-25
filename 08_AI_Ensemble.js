@@ -1,10 +1,37 @@
 /**
  * 08_AI_Ensemble.js
  * =============================================================================
- * CENTRAL DE INTELIGÊNCIA COLETIVA DE IA (UNIFICADO v10.0)
+ * CENTRAL DE INTELIGÊNCIA COLETIVA DE IA (UNIFICADO v10.4 — MERGE 08+55 + B2 + B10)
  * =============================================================================
- * Fusão e consolidação dos Ensembles 08 (Multi-IA) e 55 (Produção Otimizada).
- * Garante uniformidade nas decisões do orquestrador e do analista.
+ * v10.4 (B10): FONTE ÚNICA DO AJUSTE DE IA. `getEnhancedScoresBatch` deixa de
+ *   sobrescrever `op.score` com o score já ajustado pela IA do LOTE. Passa a
+ *   preservar `op.score` = TÉCNICO PURO e a expor o resultado da IA do lote em
+ *   campos separados (ensembleScore/scoreIA/scoreTecnico/scoreFinal). Isso
+ *   elimina a DUPLA aplicação do ajuste de IA (lote no 08 + deep no 34), que
+ *   gerava scores como "84 -3 = 81" para um técnico real de 71.25. O ponto ÚNICO
+ *   de consolidação permanece no 34_DecisionEngine (ScorePolicy).
+ * =============================================================================
+ * v10.2 (B2): `getEnhancedScoresBatch` deixa de calcular um `ensembleScore`
+ *   divergente (0.4*tech + 0.6*ia) e passa a usar a POLÍTICA ÚNICA de score
+ *   (09_ScorePolicy): final = técnico + ajusteIA_limitado(±cap). Assim o score
+ *   exibido é o MESMO do Sentinela (34_DecisionEngine) — sem 3 valores para o
+ *   mesmo ativo.
+ * =============================================================================
+ * Fusão definitiva dos Ensembles 08 (Multi-IA) e 55 (Produção Otimizada).
+ * Elimina a colisão do global `AIEnsemble` (o 55 sobrescrevia o 08 em runtime).
+ *
+ * Módulo canônico: 08_AI_Ensemble.js
+ *   - Restaura getEnhancedScore, analyzeWithEnsemble, TESTAR_ENSEMBLE, DEBUG_AI_FAILURE
+ *   - Unifica analisar(prompt, options) — compatível com 36_Agent_Analyst.js
+ *   - Unifica getEnhancedScoresBatch — lote de 5 (do 55) + preservação de campos
+ *   - Expõe PESOS (corrige VerificarFunciona.js)
+ *   - Mantém pesos dinâmicos por ADX/macro e sizing dinâmico (do 08)
+ *
+ * Dependências:
+ *   - AI_Connector (07_AI_Unified_Connector.js)
+ *   - CONFIG (01_Core_Config.js) — opcional, via _cfg()
+ *   - MacroFetcher (56_MacroFetcher.js) — opcional
+ * =============================================================================
  */
 
 var AIEnsemble = (function() {
@@ -15,6 +42,42 @@ var AIEnsemble = (function() {
     DISCORD_THRESHOLD: 0.40,
     MIN_SCORE_DEFAULT: 0.65,
     MIN_SCORE_BEARISH: 0.70
+  };
+
+  // ===========================================================================
+  // ⚙️ CONFIG / HELPERS DE WORKFLOW EM LOTE
+  // ---------------------------------------------------------------------------
+  // Fundidos do antigo 55_AI_Ensemble.js (merge v10.1). O 55 declarava o mesmo
+  // global `AIEnsemble` e, por carga alfabética no GAS, sobrescrevia este módulo
+  // em runtime — matando getEnhancedScore/analyzeWithEnsemble/TESTAR_ENSEMBLE/
+  // DEBUG_AI_FAILURE. Este arquivo é agora o módulo canônico e único.
+  // ===========================================================================
+
+  /**
+   * Lê configuração do CONFIG global ou usa fallback.
+   * @param {string} key
+   * @param {*} fallback
+   * @returns {*}
+   */
+  function _cfg(key, fallback) {
+    return (typeof CONFIG !== 'undefined' && typeof CONFIG.get === 'function')
+      ? CONFIG.get(key, fallback)
+      : fallback;
+  }
+
+  /**
+   * Configurações do fluxo em lote (fonte única de verdade).
+   * Nota: PAUSE_BETWEEN_CALLS_MS também alimenta a pausa do workflow rápido.
+   */
+  var CONF = {
+    TIMEOUT_MS: _cfg('AI_TIMEOUT_MS', 25000),
+    MAX_RETRIES: _cfg('AI_MAX_RETRIES', 2),
+    PAUSE_BETWEEN_CALLS_MS: _cfg('AI_PAUSE_BETWEEN_CALLS_MS', 500),
+    ENSEMBLE_WEIGHT_GEMINI: _cfg('ENSEMBLE_WEIGHT_GEMINI', 0.6),
+    ENSEMBLE_WEIGHT_DEEPSEEK: _cfg('ENSEMBLE_WEIGHT_DEEPSEEK', 0.4),
+    // 🔧 CORREÇÃO v9: Reduzido de 65 para 55 para alinhar com DecisionEngine v9
+    SCORE_MINIMO_APROVACAO: _cfg('IA_SCORE_MINIMO', 55),
+    FALLBACK_SCORE: _cfg('ENSEMBLE_FALLBACK_SCORE', 50)
   };
 
   // Pesos base caso o ADX esteja indisponível
@@ -213,39 +276,376 @@ var AIEnsemble = (function() {
     };
   }
 
+  // ===========================================================================
+  // 🔀 WORKFLOW A.1: HELPERS DE ANÁLISE EM LOTE
+  // ---------------------------------------------------------------------------
+  // Portados do antigo 55_AI_Ensemble.js: reduzem o consumo de API em ~5x
+  // (BATCH_SIZE ativos por chamada de IA) e oferecem fallback técnico robusto.
+  // ===========================================================================
+
+  /** Número de ativos analisados por chamada de IA (lote). */
+  var BATCH_SIZE = 5;
+
   /**
-   * Processamento em lote para o Orquestrador v9.5+
+   * Sanitiza e extrai JSON da resposta textual da IA. (do módulo 55)
+   * @param {string} rawText
+   * @returns {Object|Array|null}
+   */
+  function _extrairJSON(rawText) {
+    if (!rawText) return null;
+
+    // O conector pode devolver o objeto já parseado.
+    if (typeof rawText === 'object') return rawText;
+    if (typeof rawText !== 'string') return null;
+
+    try {
+      return JSON.parse(rawText);
+    } catch (e1) {
+      try {
+        // Limpa blocos markdown e tags de raciocínio antes de isolar o JSON.
+        var limpo = rawText
+          .replace(/```json/gi, '')
+          .replace(/```/g, '')
+          .replace(/<think>[\s\S]*?<\/think>/gi, '')
+          .trim();
+
+        var inicio = limpo.indexOf('{');
+        var fim = limpo.lastIndexOf('}');
+        if (inicio !== -1 && fim !== -1) {
+          return JSON.parse(limpo.substring(inicio, fim + 1));
+        }
+
+        var inicioArr = limpo.indexOf('[');
+        var fimArr = limpo.lastIndexOf(']');
+        if (inicioArr !== -1 && fimArr !== -1) {
+          return JSON.parse(limpo.substring(inicioArr, fimArr + 1));
+        }
+
+        return null;
+      } catch (e2) {
+        console.warn('⚠️ [AIEnsemble] Falha ao extrair JSON: ' + e2.message);
+        return null;
+      }
+    }
+  }
+
+  /**
+   * Chama o conector unificado de IA com fallback automático Gemini → DeepSeek.
+   * @param {string} prompt
+   * @param {Object} [options]
+   * @returns {string|null}
+   */
+  function _callAI(prompt, options) {
+    options = options || {};
+    options.jsonMode = true;
+
+    if (typeof AI_Connector === 'undefined') {
+      console.warn('⚠️ [AIEnsemble] AI_Connector indisponível');
+      return null;
+    }
+
+    try {
+      // Tenta Gemini primeiro
+      var resposta = AI_Connector.callGemini(prompt, options);
+      if (resposta) return resposta;
+
+      // Fallback para DeepSeek
+      console.warn('⚠️ [AIEnsemble] Gemini falhou, tentando DeepSeek...');
+      resposta = AI_Connector.callDeepSeek(prompt, options);
+      return resposta;
+
+    } catch (e) {
+      console.error('❌ [AIEnsemble] Erro ao chamar IA: ' + e.message);
+      return null;
+    }
+  }
+
+  /**
+   * Gera um score técnico combinado a partir dos indicadores disponíveis.
+   * Usado como fallback quando a IA não responde.
+   * @param {Object} op — oportunidade com indicadores
+   * @returns {number} score 0-100
+   */
+  function _calcularScoreTecnicoFallback(op) {
+    if (!op) return CONF.FALLBACK_SCORE;
+
+    var score = 50; // neutro
+
+    // Ajuste por RSI
+    var rsi = op.rsi || (op.indicators && op.indicators.rsi) || 50;
+    if (rsi > 30 && rsi < 70) score += 5;  // zona saudável
+    if (rsi > 50 && rsi < 65) score += 10; // momentum positivo
+    if (rsi >= 70) score -= 10;            // sobrecomprado
+    if (rsi <= 30) score -= 5;             // sobrevendido
+
+    // Ajuste por ADX
+    var adx = op.adx || (op.indicators && op.indicators.adx) || 25;
+    if (adx >= 25) score += 10;  // tendência presente
+    if (adx >= 30) score += 5;   // tendência forte
+    if (adx < 20) score -= 10;   // lateral
+
+    // Ajuste por RR
+    var rr = op.rr || 0;
+    if (rr >= 2.0) score += 10;
+    if (rr >= 3.0) score += 5;
+    if (rr < 1.5) score -= 5;
+
+    // Ajuste por setupType
+    var setup = op.setupType || op.setup || '';
+    if (setup.indexOf('PULLBACK') !== -1) score += 5;
+    if (setup.indexOf('ROMBIMENTO') !== -1) score += 10;
+    if (setup.indexOf('TENDENCIA') !== -1) score += 5;
+
+    // Normaliza entre 0 e 100
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  /** Helper para criar resultado fallback padronizado. */
+  function _makeFallbackResult(ticker, score, motivo) {
+    // 🔧 B2: contrato canônico também no caminho degradado (score = técnico, sem IA).
+    var s = Math.max(0, Math.min(100, Math.round(Number(score) || 0)));
+    return {
+      ticker: ticker,
+      score: s,
+      enrichedScore: s,
+      ensembleScore: s,
+      scoreTecnico: s,
+      scoreIA: null,
+      scoreFinal: s,
+      scoreMotivo: 'Fallback: ' + (motivo || 'sem IA') + ' (tecnico ' + s + ')',
+      ajusteIA: 0,
+      aiScore: null,
+      aiConfidence: 0,
+      sentiment: 'NEUTRAL',
+      aiRationale: motivo || 'Fallback',
+      fallback: true
+    };
+  }
+
+  /**
+   * Monta o prompt multi-ativo para análise em lote única.
+   * Reduz as chamadas de API de N para N/BATCH_SIZE.
+   * @param {Array} batch — até BATCH_SIZE oportunidades
+   * @returns {string}
+   */
+  function _montarPromptBatch(batch) {
+    var linhas = batch.map(function(op, idx) {
+      var ind = op.indicators || {};
+      return (
+        'Ativo ' + (idx + 1) + ': ' + op.ticker + '\n' +
+        '  Score Técnico: ' + (op.score || 50) + '\n' +
+        '  RSI: ' + (op.rsi || ind.rsi || 50) + '\n' +
+        '  ADX: ' + (op.adx || ind.adx || 25) + '\n' +
+        '  R/R: ' + (op.rr || 0) + '\n' +
+        '  Setup: ' + (op.setupType || op.setup || 'N/A') + '\n' +
+        '  Preço: R$ ' + (op.price || 0) + '\n' +
+        '  Vol Rel: ' + (op.volumeRelativo || Number(ind.volumeRelativo || 1.0).toFixed(2)) + 'x\n'
+      );
+    }).join('\n');
+
+    return (
+      'Você é um analista técnico quantitativo da B3. ' +
+      'Analise os ' + batch.length + ' ativos abaixo e retorne APENAS um array JSON.\n' +
+      'Formato: [{"ticker":"XX","score":<0-100>,"sentiment":"BULLISH|BEARISH|NEUTRAL","rationale":"..."}, ...]\n\n' +
+      'REGRAS:\n' +
+      '- ADX < 20 sem tendência → score < 40\n' +
+      '- RSI > 70 sobrecomprado → score < 50\n' +
+      '- RR >= 2.0 e ADX >= 25 → score > 60\n' +
+      '- Score >= 65: BULLISH | Score < 40: BEARISH | Demais: NEUTRAL\n' +
+      '- Volume Relativo < 0.6: penalizar liquidez (reduzir score em 10-15)\n' +
+      '- Volume Relativo > 1.5: confirmar momentum (aumentar score em 5-10)\n' +
+      '- Seja CONSERVADOR: prefira NEUTRAL a BULLISH em caso de dúvida\n' +
+      '- Retorne APENAS o array JSON, sem texto adicional.\n\n' +
+      'ATIVOS:\n' + linhas
+    );
+  }
+
+  /**
+   * Processamento em lote para o Orquestrador (unificado: lote do 55 + campos do 08).
+   *
+   * Estratégia: BATCH_SIZE ativos por chamada de IA (reduz o consumo de API em ~5x)
+   * com fallback técnico determinístico por ativo. O contrato de saída preserva
+   * TODOS os campos originais da oportunidade (necessário para o Ranker/Sheets) e
+   * acrescenta: enrichedScore, ensembleScore, aiScore, aiConfidence, sentiment,
+   * aiRationale, fallback e sources.
+   *
+   * @param {Array} lista — lista de oportunidades
+   * @returns {Array} lista enriquecida
    */
   function getEnhancedScoresBatch(lista) {
-    if (!lista || lista.length === 0) return [];
-    console.log("🧠 [AIEnsemble] Processando lote de " + lista.length + " ativos...");
+    if (!lista || !Array.isArray(lista) || lista.length === 0) {
+      console.warn('⚠️ [AIEnsemble] Lista de candidatos vazia para getEnhancedScoresBatch');
+      return [];
+    }
 
-    return lista.map(function(op) {
-      try {
-        var result = getEnhancedScore(op);
-        // Mapeamento de campos para compatibilidade com Orchestrator._enriquecerComIA
-        return {
-          ...op,
-          enrichedScore: result.finalScore,
-          ensembleScore: result.ensembleScore,
-          aiConfidence: result.confidence,
-          sentiment: result.sentiment,
-          aiRationale: result.rationale,
-          sources: result.sources
-        };
-      } catch (e) {
-        console.error("❌ [AIEnsemble] Erro no ativo " + op.ticker + ": " + e.message);
-        return {
-          ...op,
-          enrichedScore: op.score || 50,
-          ensembleScore: op.score || 50,
-          aiConfidence: 0,
-          sentiment: 'NEUTRAL',
-          aiRationale: 'Falha na análise individual.',
-          sources: { tecnico: op.score, gemini: null }
-        };
+    var total = lista.length;
+    console.log('🤖 [AIEnsemble] Processando ' + total + ' ativos em lotes de ' + BATCH_SIZE + '...');
+
+    var resultados = [];
+
+    // Processa em lotes para reduzir chamadas de API
+    for (var batchStart = 0; batchStart < total; batchStart += BATCH_SIZE) {
+      var batch = lista.slice(batchStart, batchStart + BATCH_SIZE);
+      var batchNum = Math.floor(batchStart / BATCH_SIZE) + 1;
+      var totalBatches = Math.ceil(total / BATCH_SIZE);
+      var batchTickers = batch.map(function(o) { return o.ticker; }).join(', ');
+
+      console.log('   📦 Lote ' + batchNum + '/' + totalBatches + ': ' + batchTickers);
+
+      // Tenta análise via IA em lote (apenas quando há mais de 1 ativo)
+      var resultadoIA = null;
+      if (batch.length > 1) {
+        var batchPrompt = _montarPromptBatch(batch);
+        var resposta = _callAI(batchPrompt, {
+          model: _cfg('GEMINI_MODEL', 'gemini-3.1-flash-lite'),
+          jsonMode: true
+        });
+        resultadoIA = resposta ? _extrairJSON(resposta) : null;
       }
-    });
+
+      // Processa cada ativo do lote
+      for (var i = 0; i < batch.length; i++) {
+        var op = batch[i];
+        if (!op || !op.ticker) {
+          resultados.push(_makeFallbackResult(op ? op.ticker : 'N/A', 0, 'Dados inválidos'));
+          continue;
+        }
+
+        try {
+          var ticker = op.ticker;
+          var scoreBase = (typeof op.score === 'number' && isFinite(op.score)) ? op.score : 50;
+
+          // Localiza a análise deste ativo dentro da resposta do lote
+          var parsedItem = null;
+          if (Array.isArray(resultadoIA)) {
+            for (var j = 0; j < resultadoIA.length; j++) {
+              var p = resultadoIA[j];
+              if (p && p.ticker && String(p.ticker).toUpperCase() === String(ticker).toUpperCase()) {
+                parsedItem = p;
+                break;
+              }
+            }
+          } else if (resultadoIA && typeof resultadoIA === 'object' && resultadoIA.ticker) {
+            // Resposta única (lote de 1)
+            if (String(resultadoIA.ticker).toUpperCase() === String(ticker).toUpperCase()) {
+              parsedItem = resultadoIA;
+            }
+          }
+
+          var aiScore, sentiment, rationale;
+          var isFallbackIA = false;
+
+          if (parsedItem && !isNaN(Number(parsedItem.score))) {
+            aiScore = Math.max(0, Math.min(100, Math.round(Number(parsedItem.score))));
+            sentiment = _sanitizarSentiment(parsedItem.sentiment);
+            rationale = parsedItem.rationale || 'Análise Ensemble';
+          } else {
+            // Fallback técnico (sem chamada individual). A IA crua é INDISPONÍVEL —
+            // não inventamos score de IA: passamos null para a política (não altera
+            // o técnico). `sentiment` segue NEUTRAL por ausência de sinal de IA.
+            aiScore = null;
+            isFallbackIA = true;
+            sentiment = 'NEUTRAL';
+            rationale = 'Fallback técnico (lote sem resposta IA)';
+          }
+
+          // ==============================================================
+          // 🔧 B2 (v22.17): SCORE CANÔNICO ÚNICO (09_ScorePolicy)
+          // --------------------------------------------------------------
+          // ANTES: ensembleScore = 0.4*tech + 0.6*ia — um número "fantasma"
+          // que NUNCA era usado pelo Sentinela (o 34 recalculava do zero),
+          // gerando o 3º valor divergente. AGORA usamos a MESMA política do
+          // DecisionEngine: final = técnico + ajusteIA_limitado(±cap).
+          // ensembleScore/enrichedScore viram ALIASES do scoreFinal canônico.
+          // ==============================================================
+          var pacote;
+          if (typeof ScorePolicy !== 'undefined' && typeof ScorePolicy.consolidar === 'function') {
+            pacote = ScorePolicy.consolidar(scoreBase, aiScore);
+          } else {
+            var _n = 50, _c = 15, _p = 0.30;
+            var _aj = (aiScore === null) ? 0
+              : Math.round(Math.min(_c, Math.max(-_c, (aiScore - _n) * _p)));
+            pacote = {
+              scoreFinal: Math.max(0, Math.min(100, Math.round(scoreBase + _aj))),
+              scoreTecnico: Math.round(scoreBase),
+              scoreIA: aiScore,
+              ajusteIA: _aj
+            };
+          }
+          var ensembleScore = pacote.scoreFinal;
+          var aiConfidence = parsedItem ? 0.8 : 0.3;
+
+          // Preserva TODOS os campos originais e acrescenta os campos de IA.
+          // ==============================================================
+          // 🔧 B10 (v10.4): FONTE ÚNICA DO AJUSTE DE IA.
+          // --------------------------------------------------------------
+          // ANTES (bug B10): gravávamos `score: ensembleScore` (já com IA
+          // do lote). Como o 34_DecisionEngine LÊ `op.score` como técnico e
+          // reaplica ScorePolicy com a IA DEEP, o ajuste de IA era contado
+          // DUAS vezes — com DUAS IAs diferentes (lote vs deep). Ex. KLBN11:
+          // lote IA=76 → op.score=79; deep IA=40 → 84 -3 = 81 (técnico real
+          // 71.25). Isso violava o objetivo B2 (consolidação UNICA).
+          // AGORA: preservamos `op.score` = TÉCNICO PURO (scoreBase). O
+          // resultado da IA do lote fica exposto em campos SEPARADOS
+          // (ensembleScore/scoreIA/scoreTecnico/scoreFinal) apenas para
+          // telemetria/UI. O ponto ÚNICO de consolidação continua no
+          // 34_DecisionEngine (onde a IA deep é aplicada uma única vez).
+          // ==============================================================
+          var enriquecido = Object.assign({}, op, {
+            score: pacote.scoreTecnico,    // 🔧 B10: mantém TÉCNICO PURO (não embute IA)
+            enrichedScore: ensembleScore,  // alias retrocompatível (técnico + IA lote; só leitura)
+            ensembleScore: ensembleScore,  // alias retrocompatível (técnico + IA lote; só leitura)
+            scoreTecnico: pacote.scoreTecnico,
+            scoreIA: pacote.scoreIA,
+            scoreFinal: pacote.scoreFinal,
+            scoreMotivo: pacote.motivo || ('Score tecnico ' + pacote.scoreTecnico +
+              (pacote.ajusteIA >= 0 ? '+' : '') + pacote.ajusteIA + ' = ' + ensembleScore),
+            ajusteIA: pacote.ajusteIA,
+            aiScore: aiScore,
+            aiConfidence: aiConfidence,
+            sentiment: sentiment,
+            aiRationale: rationale,
+            fallback: isFallbackIA,
+            sources: { tecnico: scoreBase, ia: aiScore }
+          });
+
+          resultados.push(enriquecido);
+
+          console.log('   ✅ [AIEnsemble] ' + ticker + ': técnico(puro)=' + scoreBase +
+            ' → IA(lote)=' + (aiScore === null ? 'n/a' : aiScore) +
+            ' → lote=' + ensembleScore + ' (ajuste ' + pacote.ajusteIA + ') | ' + sentiment +
+            ' | op.score mantido TÉCNICO PURO (consolidação única no Sentinela)');
+
+
+        } catch (e) {
+          console.error('❌ [AIEnsemble] Erro ao processar ' + (op.ticker || '?') + ': ' + e.message);
+          resultados.push(Object.assign(
+            { score: op.score || 0 },
+            _makeFallbackResult(op.ticker || 'N/A', op.score || 0, 'Erro: ' + e.message)
+          ));
+        }
+      }
+
+      // Pausa entre lotes (não entre cada ativo)
+      if (batchStart + BATCH_SIZE < total) {
+        Utilities.sleep(CONF.PAUSE_BETWEEN_CALLS_MS);
+      }
+    }
+
+    console.log('✅ [AIEnsemble] Lote concluído. ' + resultados.length + '/' + total + ' processados.');
+    return resultados;
+  }
+
+  /**
+   * Normaliza rótulos de sentimento aceitos pela IA.
+   * @param {string} valor
+   * @returns {string} BULLISH | BEARISH | NEUTRAL
+   */
+  function _sanitizarSentiment(valor) {
+    var s = String(valor || '').toUpperCase();
+    if (s.indexOf('BULL') !== -1) return 'BULLISH';
+    if (s.indexOf('BEAR') !== -1) return 'BEARISH';
+    return 'NEUTRAL';
   }
 
   // ===========================================================================
@@ -253,19 +653,34 @@ var AIEnsemble = (function() {
   // ===========================================================================
 
   /**
-   * Ponto de entrada do AgentAnalyst para validação profunda multi-IA (Gemini + DeepSeek).
-   * Implementa pesos dinâmicos em função do regime (ADX) e dimensionamento de lote (sizing) dinâmico.
+   * Ponto de entrada do AgentAnalyst (36_Agent_Analyst.js) para validação profunda multi-IA.
+   *
+   * Assinatura compatível com BOTH contratos:
+   *   analisar(prompt, options)                      — contrato do módulo 55
+   *   analisar(prompt, dadosTecnicos, macroRegime)   — contrato do módulo 08 (legado)
+   *
+   * Implementa pesos dinâmicos em função do regime (ADX + macro) e sizing dinâmico.
+   *
+   * @param {string} prompt — prompt completo (system + user)
+   * @param {Object} [options] — { ticker, score, trend, rsi, adx, macd, macroRegime }
+   * @param {string} [macroRegime] — compatibilidade com a assinatura antiga do 08
+   * @returns {Object} { decision, finalScore, rejected, breakdown, rationale, sentiment, pesos, positionSize }
    */
-  function analisar(prompt, dadosTecnicos = {}, macroRegime = "NEUTRAL") {
-    console.log("🧠 [AIEnsemble] Iniciando análise multi-IA profunda...");
+  function analisar(prompt, options, macroRegime) {
+    options = options || {};
+    if (typeof options !== 'object') options = {};
 
-    var ticker = dadosTecnicos.ticker || "Ativo";
-    
+    // Compatibilidade: o 08 antigo passava dadosTecnicos no 2º parâmetro.
+    var ticker = options.ticker || "Ativo";
+    var macroRegimeEfetivo = options.macroRegime || macroRegime || "NEUTRAL";
+
+    console.log("🧠 [AIEnsemble] Iniciando análise multi-IA profunda para " + ticker + " (regime " + macroRegimeEfetivo + ")...");
+
     // Unificando escala para 0-100 em todo o módulo
-    var rawTechScore = dadosTecnicos.score || 50;
+    var rawTechScore = (typeof options.score === 'number' && isFinite(options.score)) ? options.score : 50;
     var techScore = rawTechScore > 1 ? rawTechScore : rawTechScore * 100;
 
-    var adx = dadosTecnicos.adx || 25; // Lê o ADX do ativo para o ajuste de pesos dinâmicos
+    var adx = options.adx || 25; // Lê o ADX do ativo para o ajuste de pesos dinâmicos
 
     // Prompts customizados para forçar especializações opostas e garantir respostas JSON válidas
     const promptGemini = `${prompt}\n\nVocê é um trader de MOMENTUM. Prefira tendência forte.\n` +
@@ -414,7 +829,7 @@ var AIEnsemble = (function() {
 
       if (reqG) {
         try {
-          var geminiRaw = AI_Connector.callGemini(promptGemini, { jsonMode: true, temperature: 0.2 });
+          var geminiRaw = AI_Connector.callGemini(promptGemini, { jsonMode: true });
           console.log("🔍 [AIEnsemble] Gemini fallback raw:", geminiRaw ? geminiRaw.substring(0, 400) : "<vazio>");
           var parsedGemini = _safeParse(geminiRaw);
           if (parsedGemini) {
@@ -441,28 +856,42 @@ var AIEnsemble = (function() {
       }
     }
 
-    if (gS !== null) gS *= 100;
-    if (dS !== null) dS *= 100;
+    // 💡 B9 (v10.3): _extractScore já devolve 0-100 (escala canônica).
+    // Não convertemos mais aqui — mantém TUDO em 0-100 ponta a ponta.
 
     if (gS !== null && isNaN(gS)) gS = null;
     if (dS !== null && isNaN(dS)) dS = null;
 
-    // Ajuste dinâmico de pesos (considera nulls)
-    var weights = _ajustarPesosDinamicos(gS, dS, adx, macroRegime);
+    // Ajuste dinâmico de pesos (considera nulls + ADX + regime macro)
+    var weights = _ajustarPesosDinamicos(gS, dS, adx, macroRegimeEfetivo);
 
-    // Média ponderada com pesos inteligentes
-    var finalScore = (weights.GEMINI * (gS || 0)) + (weights.DEEPSEEK * (dS || 0)) + (weights.TECH * techScore);
+    // =====================================================================
+    // B2 (v10.2): SCORE DE IA PURO (nao re-blenda o tecnico)
+    // ---------------------------------------------------------------------
+    // ANTES: finalScore = w.G*gS + w.D*dS + w.TECH*techScore misturava o
+    // tecnico dentro do ai_score, e o DecisionEngine misturava de novo.
+    // AGORA: devolvemos a CONCORDANCIA DAS IAs (0-100). O blend com o tecnico
+    // ocorre UMA vez em 09_ScorePolicy (final = tecnico + ajusteIA).
+    // =====================================================================
+    var iaPesoTotal = weights.GEMINI + weights.DEEPSEEK;
+    var iaConsenso;
+    if (iaPesoTotal > 0) {
+      iaConsenso = ((weights.GEMINI * (gS || 0)) + (weights.DEEPSEEK * (dS || 0))) / iaPesoTotal;
+    } else {
+      iaConsenso = null; // nenhuma IA respondeu
+    }
+    var scoreIA = (iaConsenso === null) ? null : Math.max(0, Math.min(100, Math.round(iaConsenso)));
+    var finalScore = (scoreIA === null) ? techScore : scoreIA;
 
     var diff = (gS !== null && dS !== null) ? Math.abs(gS - dS) : 0;
-    
-    console.log("📊 [Ensemble] Scores: Gemini: " + (gS !== null ? gS.toFixed(1) : "OFF") + " | DeepSeek: " + (dS !== null ? dS.toFixed(1) : "OFF") + " | Tech: " + techScore.toFixed(1));
-    console.log("⚖️ [Ensemble] Pesos: Gemini: " + (weights.GEMINI * 100).toFixed(0) + "% | DeepSeek: " + (weights.DEEPSEEK * 100).toFixed(0) + "% | Tech: " + (weights.TECH * 100).toFixed(0) + "%");
+
+    console.log("Ensemble IA: Gemini: " + (gS !== null ? gS.toFixed(1) : "OFF") + " | DeepSeek: " + (dS !== null ? dS.toFixed(1) : "OFF") + " | Consenso IA: " + (scoreIA === null ? "n/a" : scoreIA) + " | (tech ref: " + techScore.toFixed(1) + ")");
 
     // Validação de Conflito Crítico (Bloqueio)
     var conflitoBloqueante = false;
     // Se as duas concordam em direções opostas com força (diff > 40 pontos)
     // ✅ Ajuste: Aumentar o threshold de conflito para ser menos agressivo em BEARISH
-    var currentDiscordThreshold = (macroRegime === "BEARISH" && techScore >= 70) ? 50 : (CONFIG_ENSEMBLE.DISCORD_THRESHOLD * 100);
+    var currentDiscordThreshold = (macroRegimeEfetivo === "BEARISH" && techScore >= 70) ? 50 : (CONFIG_ENSEMBLE.DISCORD_THRESHOLD * 100);
     if (gS !== null && dS !== null && diff > currentDiscordThreshold) {
       console.warn("🚨 [AIEnsemble] Conflito extremo de convicção detectado. Vetando operação.");
       conflitoBloqueante = true;
@@ -480,7 +909,7 @@ var AIEnsemble = (function() {
       } else if (diff > 20) {
         console.warn("⚠️ Divergência moderada entre IAs: " + diff.toFixed(1));
         // ✅ CORREÇÃO: Penalidade menos severa se em regime BEARISH e score técnico alto
-        if (macroRegime === "BEARISH" && techScore >= 70) {
+        if (macroRegimeEfetivo === "BEARISH" && techScore >= 70) {
             finalScore *= 0.95; // Penalidade reduzida
         } else {
             finalScore *= 0.90; // Penalidade padrão
@@ -490,7 +919,10 @@ var AIEnsemble = (function() {
 
 
     // Regra de Threshold Operacional
-    var threshold = (macroRegime === "BEARISH" ? CONFIG_ENSEMBLE.MIN_SCORE_BEARISH : CONFIG_ENSEMBLE.MIN_SCORE_DEFAULT) * 100;
+    // ✅ v10.1 (merge): passa a respeitar CONF.SCORE_MINIMO_APROVACAO (configurável via
+    // CONFIG/IA_SCORE_MINIMO), unificando o limiar do 55 com os thresholds de decisão do 08.
+    var threshold = (macroRegimeEfetivo === "BEARISH" ? CONFIG_ENSEMBLE.MIN_SCORE_BEARISH : CONFIG_ENSEMBLE.MIN_SCORE_DEFAULT) * 100;
+    threshold = Math.min(threshold, CONF.SCORE_MINIMO_APROVACAO);
     
     var rejected = finalScore < threshold || conflitoBloqueante;
     
@@ -499,10 +931,12 @@ var AIEnsemble = (function() {
       
       return {
         finalScore: Math.round(finalScore),
+        aiScore: scoreIA,          // 🔧 B2: concordância das IAs (0-100) ou null
         decision: "NEUTRO",
         rejected: true,
         rationale: "Descartado pelo Ensemble: " + motivoRejeicao,
         breakdown: { gemini: gS, deepseek: dS, tecnico: techScore, conflito: diff },
+        sentiment: _scoreToSentiment(finalScore),
         pesos: weights,
         positionSize: 0
       };
@@ -511,17 +945,30 @@ var AIEnsemble = (function() {
     // Decisão final
     var decision = _scoreToDecision(finalScore / 100);
 
-    var positionSize = _calcularSizingDinamico(finalScore / 100, (gS || 0) / 100, (dS || 0) / 100, macroRegime);
+    var positionSize = _calcularSizingDinamico(finalScore / 100, (gS || 0) / 100, (dS || 0) / 100, macroRegimeEfetivo);
 
     return {
       finalScore: Math.round(finalScore),
+      aiScore: scoreIA,          // 🔧 B2: concordância das IAs (0-100) ou null
       decision: decision,
       rejected: false,
       rationale: "Aprovado pelo Ensemble de IA. Consenso quantitativo atingido.",
       breakdown: { gemini: gS, deepseek: dS, tecnico: techScore, conflito: diff },
+      sentiment: _scoreToSentiment(finalScore),
       pesos: weights,
       positionSize: positionSize
     };
+  }
+
+  /**
+   * Converte score 0-100 em rótulo de sentimento padronizado.
+   * @param {number} score
+   * @returns {string} BULLISH | BEARISH | NEUTRAL
+   */
+  function _scoreToSentiment(score) {
+    if (score >= 65) return 'BULLISH';
+    if (score <= 40) return 'BEARISH';
+    return 'NEUTRAL';
   }
 
   // ===========================================================================
@@ -529,24 +976,27 @@ var AIEnsemble = (function() {
   // ===========================================================================
 
   /**
-   * Ajusta dinamicamente os pesos com base no regime de ADX e falhas de resposta das IAs.
+   * Ajusta dinamicamente os pesos com base no regime de ADX, no macro e em falhas de resposta das IAs.
    * Evita a anulação de estratégias opostas em regimes claros.
+   * @param {number|null} gScore — score Gemini 0-100 (null se falhou)
+   * @param {number|null} dScore — score DeepSeek 0-100 (null se falhou)
+   * @param {number} adxValue — ADX do ativo
+   * @param {string} [macroRegimeParam] — regime macro já resolvido (evita 2ª chamada ao MacroFetcher)
+   * @returns {{GEMINI:number, DEEPSEEK:number, TECH:number}} pesos normalizados (soma = 1)
    */
-  function _ajustarPesosDinamicos(gScore, dScore, adxValue) {
+  function _ajustarPesosDinamicos(gScore, dScore, adxValue, macroRegimeParam) {
 
-var macro = null;
-var macroRegime = "NEUTRAL";
+    var macroRegime = macroRegimeParam || "NEUTRAL";
 
-try {
-  if (typeof MacroFetcher !== 'undefined') {
-    macro = MacroFetcher.getMacroContext();
-    macroRegime = macro.regime || "NEUTRAL";
-  }
-} catch (e) {
-  console.warn("⚠️ MacroFetcher falhou em _ajustarPesosDinamicos");
-}
-
-
+    // Se o regime não veio do chamador, tenta obter do MacroFetcher (retrocompatibilidade).
+    if (!macroRegimeParam && typeof MacroFetcher !== 'undefined') {
+      try {
+        var macro = MacroFetcher.getMacroContext();
+        macroRegime = (macro && macro.regime) || "NEUTRAL";
+      } catch (e) {
+        console.warn("⚠️ MacroFetcher falhou em _ajustarPesosDinamicos");
+      }
+    }
 
     var w = { GEMINI: PESOS_PADRAO.GEMINI, DEEPSEEK: PESOS_PADRAO.DEEPSEEK, TECH: PESOS_PADRAO.TECH };
 
@@ -794,6 +1244,14 @@ if (macroRegime === "BEARISH") {
     return null;
   }
 
+  // 💡 B9 (v10.3): NORMALIZAÇÃO ÚNICA PARA 0-100 (elimina o ping-pong 0-1/0-100).
+  // -----------------------------------------------------------------------------
+  // ANTES: _normalizeScore devolvia 0-1 e o chamador fazia `gS *= 100`. Além disso
+  // a heurística `num > 1` tornava o valor EXATO `1` ambíguo (1.00 = máximo OU 1%?).
+  // AGORA: a função devolve SEMPRE 0-100 (escala canônica do projeto). Regra:
+  //   • valor em [0, 1]  → é FRAÇÃO (a IA é instruída a responder 0.00-1.00) → ×100
+  //   • valor > 1        → já está em 0-100 → usa direto (com clamp 0-100)
+  // Assim `1` → 100 (máximo, coerente com o contrato do prompt) e `0.85` → 85.
   function _normalizeScore(val) {
     if (val === null || val === undefined) return null;
     if (typeof val === 'string') val = val.trim().replace(',', '.').replace(/[^\d.-]/g, '');
@@ -804,14 +1262,15 @@ if (macroRegime === "BEARISH") {
       if (match) num = parseFloat(match[1]);
       else return null;
     }
-    // Se o valor for > 1.0 (ex: 85), assume escala 0-100 e normaliza para 0.85
-    var normalized = num > 1.0 ? num / 100 : num;
-    if (normalized < 0 || normalized > 1) {
-      console.warn("⚠️ [AIEnsemble] Score normalizado fora de faixa detectado e descartado: " + normalized + " (raw=" + num + ")");
+    // Fração 0-1 (contrato do prompt) → escala 0-100. Já >1 → assume 0-100.
+    var in100 = (num >= 0 && num <= 1) ? num * 100 : num;
+    // Clamp defensivo: descarta entradas absurdas fora de 0-100.
+    if (in100 < 0 || in100 > 100) {
+      console.warn("⚠️ [AIEnsemble] Score fora de faixa descartado: " + in100 + " (raw=" + num + ")");
       return null;
     }
-    console.log("🔍 [DEBUG _normalizeScore] valor=" + val + " → normalizado=" + normalized.toFixed(3) + " (raw: " + num + ", escala: " + (num > 1.0 ? "0-100→0-1" : "0-1") + ")");
-    return normalized;
+    console.log("🔍 [DEBUG _normalizeScore] valor=" + val + " → " + in100.toFixed(1) + " (raw: " + num + ", escala: " + (num >= 0 && num <= 1 ? "0-1→0-100" : "0-100") + ")");
+    return in100;
   }
 
   function _extractTechScore(data) {
@@ -946,12 +1405,26 @@ if (macroRegime === "BEARISH") {
   // ✅ API PÚBLICA EXPORTADA
   // ===========================================================================
   return {
+    // --- Workflow A: enriquecimento rápido/em lote (Orchestrator) ---
     getEnhancedScore: getEnhancedScore,
     analyzeWithEnsemble: analyzeWithEnsemble, // retrocompatibilidade com módulo 55
-    getEnhancedScoresBatch: getEnhancedScoresBatch, // Adicionado para Orchestrator v9.5
-    analisar: analisar, // retrocompatibilidade com módulo 08
+    getEnhancedScoresBatch: getEnhancedScoresBatch, // Orchestrator._enriquecerComIA (lote de 5)
+
+    // --- Workflow B: validação profunda multi-IA (AgentAnalyst) ---
+    analisar: analisar,
+
+    // --- Debug/Testes ---
     TESTAR_ENSEMBLE: TESTAR_ENSEMBLE,
-    DEBUG_AI_FAILURE: DEBUG_AI_FAILURE
+    DEBUG_AI_FAILURE: DEBUG_AI_FAILURE,
+
+    // Exposto para VerificarFunciona.js (corrige referência fantasma ao PESOS).
+    // Contrato legado do módulo 55: { GEMINI: 0.50, TECNICO: 0.50 }.
+    // Os pesos dinâmicos reais ficam em PESOS_PADRAO (usados por _ajustarPesosDinamicos).
+    PESOS: { GEMINI: 0.50, TECNICO: 0.50 },
+
+    // --- Configuração (auditoria/observabilidade) ---
+    CONFIG_ENSEMBLE: CONFIG_ENSEMBLE,
+    PESOS_PADRAO: PESOS_PADRAO
   };
 
 })();

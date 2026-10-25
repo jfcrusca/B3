@@ -38,3 +38,6 @@ A arquitetura de falhas (Circuit Breaker) deve seguir estritamente a ordem abaix
 - `40_*` / `50_*` / `56_*` — Ranker, Análises e MacroFetcher
 - `Index.html` e `WebApp.js` — Frontend (Usar APENAS `google.script.run` para comunicação com backend).
 - **Clasp:** Configurações Node locais (`package.json`, `.env`) devem estar no `.claspignore`. Apenas `.gs` e `.html` sobem para o Google.
+
+## 6. Controle do clasp push --watch
+Escreva funções completas e revise a lógica antes de salvar o arquivo, evitando múltiplos salvamentos parciais que disparam o 'clasp push --watch' desnecessariamente.

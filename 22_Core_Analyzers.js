@@ -1,11 +1,53 @@
 /******************************************************************************/
 // 📦 MÓDULO/ARQUIVO: 22_Core_Analyzers.js
 // 🛠️  TECNOLOGIA: JAVASCRIPT (V8 / Google Apps Script)
-// 📌  VERSÃO: 22.12 — ADX E BOLLINGER CORRIGIDOS + FALLBACKS ROBUSTOS
+// 📌  VERSÃO: 22.16 — VOLUME ROBUSTO A OUTLIERS + HEURÍSTICA DE INFLADOS RECALIBRADA (B8)
 /******************************************************************************/
 
+/**
+ * =============================================================================
+ * CORE22_CFG — Parâmetros do analisador de estrutura e risco (v22.14)
+ * =============================================================================
+ * 🔧 v22.14 — CORREÇÕES DE CONFIGURAÇÃO (caso BPAC11)
+ * -----------------------------------------------------------------------------
+ * PROBLEMA: preço R$ 63,50, mas a "Entrada Sugerida" saía a R$ 53,98 (−15%).
+ * Causa raiz: `structureLookback: 30` num ativo que subiu 46% em 30 sessões
+ * gerava um range50 de 43,4% do próprio preço. Uma retração de 61,8% DESSE
+ * range cai inevitavelmente muito longe — a distância da entrada é proporcional
+ * ao RANGE, não ao ATR. Nenhum ajuste de slack resolveria.
+ *
+ *   range 10% do preço → fibo618 ~6% abaixo
+ *   range 20% do preço → fibo618 ~12% abaixo
+ *   range 43% do preço → fibo618 15% abaixo  ← BPAC11
+ *
+ * CORREÇÕES APLICADAS:
+ *  [C1] `structureLookback`: 30 → 60. Dobra a janela para capturar o swing
+ *       estrutural completo (perna de alta + correção anterior), em vez de
+ *       apenas o impulso recente. Reduz a distância típica da entrada.
+ *  [C2] `maxRangePct`/`minRangePct` (NOVOS): se o range do lookback for
+ *       anormalmente largo (ativo em disparada), a estrutura Fibonacci é
+ *       considerada NÃO CONFIÁVEL (`fiboConfiavel=false`) e os alvos passam a
+ *       ser derivados do ATR em vez de extensões de um range inflado.
+ *  [C3] `fiboZoneSlack` passa a ser expresso em MÚLTIPLOS DE ATR
+ *       (`fiboZoneSlackAtr`), não em percentual fixo. Ajusta-se à volatilidade
+ *       do ativo: uma ação com ATR 5% tem zona proporcionalmente mais larga.
+ *  [C4] `confluenceMaxDist`: 0,005 (0,5%) → 0,02 (2%). Exigir EMA21 a 0,5% de
+ *       um Fibo era estatisticamente inalcançável (no BPAC11 a EMA21 estava a
+ *       7,3% do fibo618 — o bônus de confluência nunca disparava).
+ *  [C5] `maxStopPct`: 0,30 → 0,15. Alinha com o teto de risco do
+ *       `28_Position_Geometry.RISCO_MAXIMO_PCT`, eliminando a divergência em
+ *       que o analisador aceitava risco de até 30% mas o validador vetava > 15%.
+ * =============================================================================
+ */
 const CORE22_CFG = {
-  structureLookback: 30,
+  // ── Estrutura de mercado (Fibonacci) ────────────────────────────────────
+  // [C1] 60 sessões = swing estrutural completo (antes: 30 = só o impulso)
+  structureLookback: 60,
+  // [C2] Sanidade do range: fora dessa faixa, a estrutura não é confiável
+  minRangePct: 0.05,   // range menor que 5% do preço => ativo lateral (Fibo inútil)
+  maxRangePct: 0.35,   // range maior que 35% do preço => movimento excepcional
+
+  // ── Stop loss ───────────────────────────────────────────────────────────
   swingLookback: 25,
   pivotLeftBars: 2,
   pivotRightBars: 2,
@@ -13,14 +55,38 @@ const CORE22_CFG = {
   kNoiseMinDist: 1.5,
   kSwingBuffer: 1.0,
   minStopPctFloor: 0.005,
-  maxStopPct: 0.30,
+  // [C5] 15% — alinhado com 28_Position_Geometry.RISCO_MAXIMO_PCT
+  maxStopPct: 0.15,
+  // 🔧 v22.15 [CORREÇÃO B]: teto de stop em MÚLTIPLOS DE ATR.
+  // Um stop de swing saudável fica entre 1 e 2,5 ATR. O teto percentual (15%)
+  // é cego à volatilidade: num ativo com ATR de 5% ele permitia stops de 3 ATR,
+  // e no caso BPAC11 chegou a 6,27 ATR (inútil como proteção).
+  maxStopAtr: 2.5,
+  // 🔧 v22.15 [CORREÇÃO C3]: teto de ALVO em múltiplos de ATR.
+  // Extensões de Fibonacci acima do topo histórico produziam alvos de 8,8 ATR
+  // (BPAC11: +23,7% com stop de 6,3 ATR). O limitador é o MENOR entre o topo
+  // histórico (h50) e `preço + maxAlvoAtr × ATR`.
+  maxAlvoAtr: 4.0,
+
+  // ── Alvos (fallback por múltiplo de risco) ──────────────────────────────
   t1R: 2.0,
   t2R: 3.0,
   penaltyInvalidStop: 40,
+
+  // ── Zona de compra (Fibonacci) ──────────────────────────────────────────
+  // [C3] Tolerância em MÚLTIPLOS DE ATR (substitui o percentual fixo).
+  //      0,6 ATR de cada lado da faixa Fibonacci. Um ativo com ATR de 2,7%
+  //      ganha ~±1,6% de folga; um com ATR de 5% ganha ~±3%. Substitui os
+  //      antigos fiboZoneSlackTop/Bot de 1,005/0,995 (percentual rígido).
+  fiboZoneSlackAtr: 0.6,
+  // Legado: mantido para retrocompatibilidade com consumidores externos.
   fiboZoneSlackTop: 1.005,
   fiboZoneSlackBot: 0.995,
-  confluenceMaxDist: 0.005
+
+  // [C4] 2% — distância máxima aceitável entre Fibo e EMA para confluência.
+  confluenceMaxDist: 0.02
 };
+
 
 function STRATEGY_EVALUATE_CORE(data, ibovContext) {
   // =========================================================================
@@ -104,7 +170,7 @@ function STRATEGY_EVALUATE_CORE(data, ibovContext) {
   // 4. CÁLCULO DOS INDICADORES (COM FALLBACKS GARANTIDOS)
   // =========================================================================
   var context = _obterContextoPrecos(candles);
-  var ind = _calcularIndicadoresTecnicos(candles, context.closes);
+  var ind = _calcularIndicadoresTecnicos(candles, context.closes, ticker);
   
   // ✅ GARANTIR QUE ADX EXISTA
   if (ind.adx === undefined || ind.adx === null || isNaN(ind.adx)) {
@@ -195,7 +261,11 @@ function STRATEGY_EVALUATE_CORE(data, ibovContext) {
     // 🔧 CORREÇÃO v10.2: Campos para IA/DecisionEngine detectarem "perto do topo"
     topo50: parseFloat((estrutura.h50 || 0).toFixed(2)),
     ganhoRapidoPct: estrutura.ganhoRapidoPct || 0,
-    distTopoPct: estrutura.distTopoPct || 0
+    distTopoPct: estrutura.distTopoPct || 0,
+    // 🔧 v13.2: Força Relativa vs. benchmark (BOVA11) — percentual 21d.
+    retorno21d: estrutura.retorno21d || 0,
+    forcaRelativa: (ibovContext && typeof ibovContext.benchmarkReturn21d === 'number')
+      ? parseFloat(((estrutura.retorno21d || 0) - ibovContext.benchmarkReturn21d).toFixed(4)) : null
   };
   
   // Log de diagnóstico para debug (opcional - remove em produção)
@@ -215,10 +285,10 @@ function _obterContextoPrecos(candles) {
   };
 }
 
-function _calcularIndicadoresTecnicos(candles, closes) {
+function _calcularIndicadoresTecnicos(candles, closes, ticker) {
   // Volume Relativo (robusto: mediana dos volumes anteriores)
   var period = 20;
-  var volumeRelativo = _core_getVolumeRelativo(candles, period);
+  var volumeRelativo = _core_getVolumeRelativo(candles, period, ticker);
 
   // ✅ CALCULAR ADX (com fallback garantido)
   var adx = _core_getADX(candles, 14);
@@ -261,10 +331,39 @@ function _analisarEstruturaMercado(ctx, preco, ind, candles) {
   var range50 = h50 - l50;
   var fibo618 = h50 - (range50 * 0.618);
   var fibo50 = h50 - (range50 * 0.50);
-  var inFiboZone = (preco <= (fibo50 * CORE22_CFG.fiboZoneSlackTop) && preco >= (fibo618 * CORE22_CFG.fiboZoneSlackBot));
+  var fibo382 = h50 - (range50 * 0.382);
+
+  // 🔧 v22.14 [C2]: SANIDADE DO RANGE — um range anormalmente largo (ativo em
+  // disparada) produz retrações Fibonacci irreais: a 61,8% de um range de 43%
+  // do preço cai 15% abaixo da cotação (caso BPAC11). Quando o range sai da
+  // faixa [minRangePct, maxRangePct], marcamos a estrutura como não confiável
+  // para que os alvos venham do ATR em vez de extensões de um range inflado.
+  var rangePct = preco > 0 ? (range50 / preco) : 0;
+  var fiboConfiavel = (rangePct >= CORE22_CFG.minRangePct && rangePct <= CORE22_CFG.maxRangePct);
+  var motivoFibo = '';
+  if (rangePct < CORE22_CFG.minRangePct) {
+    motivoFibo = 'RANGE ESTREITO (' + (rangePct * 100).toFixed(1) + '% do preço) — Fibo pouco significativo';
+  } else if (rangePct > CORE22_CFG.maxRangePct) {
+    motivoFibo = 'RANGE EXCESSIVO (' + (rangePct * 100).toFixed(1) + '% do preço) — Fibo não confiável';
+  }
+
+  // 🔧 v22.14 [C3]: tolerância da zona em MÚLTIPLOS DE ATR (antes: percentual
+  // fixo de 0,5%, que ignorava a volatilidade do ativo).
+  var atrRef = (ind && ind.atr > 0) ? ind.atr : (preco * 0.02);
+  var slackAbs = atrRef * CORE22_CFG.fiboZoneSlackAtr;
+  var zonaPiso = fibo618 - slackAbs;
+  var zonaTeto = fibo50 + slackAbs;
+  var inFiboZone = (preco <= zonaTeto && preco >= zonaPiso);
+
+  // Distância até o centro da zona de compra (usada no score)
+  var centroZona = (fibo618 + fibo50) / 2;
+  var distZonaPct = (preco > 0 && centroZona > 0)
+    ? ((preco - centroZona) / centroZona) : 0;
+
   var distEMA21 = fibo618 > 0 ? (Math.abs(fibo618 - ind.ema21) / fibo618) : 1;
   var distEMA50 = fibo618 > 0 ? (Math.abs(fibo618 - ind.ema50) / fibo618) : 1;
-  var temConfluencia = inFiboZone && (distEMA21 <= CORE22_CFG.confluenceMaxDist || distEMA50 <= CORE22_CFG.confluenceMaxDist);
+  var temConfluencia = inFiboZone &&
+    (distEMA21 <= CORE22_CFG.confluenceMaxDist || distEMA50 <= CORE22_CFG.confluenceMaxDist);
   var swingLow = _core_getLastPivotLow(candles);
   
   // 🔧 CORREÇÃO v10.2: GANHO RÁPIDO ACUMULADO (lookback 10 candles)
@@ -279,24 +378,68 @@ function _analisarEstruturaMercado(ctx, preco, ind, candles) {
   } catch(e) {
     console.warn("⚠️ [Core22] Falha ao calcular ganho rápido: " + e.message);
   }
-  
+
+  // 🔧 v13.2: RETORNO 21d (usado para Força Relativa vs. benchmark BOVA11).
+  var retorno21d = 0;
+  try {
+    var idx21 = candles.length - 22; // 21 sessões atrás
+    if (idx21 >= 0) {
+      var preco21 = Number(candles[idx21] && candles[idx21].close) || 0;
+      if (preco21 > 0) retorno21d = (preco / preco21) - 1;
+    }
+  } catch (e21) { /* mantém 0 */ }
+
   return {
     h50: h50,
     l50: l50,
     fibo618: fibo618,
     fibo50: fibo50,
+    fibo382: fibo382,
     inFiboZone: inFiboZone,
     temConfluencia: temConfluencia,
     swingLow: (swingLow != null ? swingLow : l50),
     ganhoRapidoPct: parseFloat(ganhoRapidoPct.toFixed(4)),
-    distTopoPct: h50 > 0 ? parseFloat(((h50 - preco) / h50).toFixed(4)) : 0
+    distTopoPct: h50 > 0 ? parseFloat(((h50 - preco) / h50).toFixed(4)) : 0,
+    retorno21d: parseFloat(retorno21d.toFixed(4)), // 🔧 v13.2: força relativa
+
+    // 🔧 v22.14 — metadados de confiabilidade da estrutura Fibonacci
+    lookbackUsado: lb,
+    rangePct: parseFloat(rangePct.toFixed(4)),
+    fiboConfiavel: fiboConfiavel,
+    motivoFibo: motivoFibo,
+    zonaPiso: parseFloat(zonaPiso.toFixed(2)),
+    zonaTeto: parseFloat(zonaTeto.toFixed(2)),
+    centroZona: parseFloat(centroZona.toFixed(2)),
+    distZonaPct: parseFloat(distZonaPct.toFixed(4))
   };
 }
 
 function _processarGestaoRisco(preco, atr, estrutura, candles, closes) {
   var maxStopDist = Math.abs(preco) * CORE22_CFG.maxStopPct;
   var noisePrice = _core_noisePrice(preco, atr, candles, closes);
-  var swingStop = _core_getLastPivotLow(candles, CORE22_CFG.swingLookback);
+
+  // 🔧 v22.15 [CORREÇÃO A]: ALINHAMENTO DE LOOKBACK
+  // ---------------------------------------------------------------------------
+  // BUG ANTERIOR: o stop buscava o pivô nas últimas `swingLookback` (25) barras,
+  // enquanto os alvos Fibonacci vinham de `structureLookback` (60) barras. Duas
+  // janelas temporais diferentes produziam números que o usuário lê como se
+  // fossem do mesmo ativo.
+  //
+  // EVIDÊNCIA (BPAC11): stop exibido = R$ 52,84, que era exatamente o fibo618
+  // calculado com lookback 30 (o valor ANTIGO de structureLookback). Com o
+  // lookback atual (60) o fibo618 é R$ 53,98 e o pivô real (mínima do dia) era
+  // R$ 61,67. O stop ficou 6,27× ATR abaixo do preço — inútil como proteção.
+  //
+  // CORREÇÃO: o pivô do stop passa a usar a MESMA janela da estrutura.
+  var swingStop = _core_getLastPivotLow(candles, CORE22_CFG.structureLookback);
+
+  // 🔧 v22.15 [CORREÇÃO B]: TETO DE STOP EM MÚLTIPLOS DE ATR
+  // ---------------------------------------------------------------------------
+  // `maxStopPct` (15%) é frouxo demais para ativos voláteis: permitia stops de
+  // 6+ ATR. Um stop saudável de swing fica entre 1 e 2,5 ATR. Aqui aplicamos
+  // um teto ABSOLUTO em ATR, que é independente da % do preço.
+  var tetoAtrStop = (atr > 0) ? atr * CORE22_CFG.maxStopAtr : Infinity;
+
   var stopDistTecnico = (swingStop != null && swingStop < preco) ? (preco - swingStop) : null;
   if (stopDistTecnico != null && stopDistTecnico < noisePrice) {
     stopDistTecnico = noisePrice;
@@ -304,11 +447,21 @@ function _processarGestaoRisco(preco, atr, estrutura, candles, closes) {
     stopDistTecnico = noisePrice;
   }
   var minStopDist = Math.abs(preco) * CORE22_CFG.minStopPctFloor;
+
+  // Limite efetivo = o MENOR entre o teto percentual e o teto em ATR
+  var maxStopDistEfetivo = Math.min(maxStopDist, tetoAtrStop);
   var stopDist = Math.max(stopDistTecnico, minStopDist);
+
   var invalidoPorStop = false;
-  if (stopDist > maxStopDist) {
-    stopDist = maxStopDist;
-    invalidoPorStop = true;
+  var stopCortadoPorAtr = false;
+  if (stopDist > maxStopDistEfetivo) {
+    stopDist = maxStopDistEfetivo;
+    // Diferencia a causa do corte para diagnóstico preciso
+    if (tetoAtrStop < maxStopDist) {
+      stopCortadoPorAtr = true;
+    } else {
+      invalidoPorStop = true;
+    }
   }
   var stop = preco - stopDist;
   var precoAtual = preco;
@@ -322,10 +475,33 @@ function _processarGestaoRisco(preco, atr, estrutura, candles, closes) {
   var niveis = [h50, fibo618, fibo50, h50_ext1, h50_ext2];
   niveis = niveis.filter(function(n) { return n != null && n > 0; });
   niveis.sort(function(a, b) { return a - b; });
+
+  // 🔧 v22.15 [CORREÇÃO C3]: TETO DE ALVO — o MENOR entre o topo histórico e
+  // `preço + maxAlvoAtr × ATR`.
+  // ---------------------------------------------------------------------------
+  // BUG ANTERIOR (BPAC11): as extensões de Fibonacci (h50_ext1 = 78,52 e
+  // h50_ext2 = 88,06) são PROJEÇÕES DE MÉDIO PRAZO acima do topo histórico
+  // (71,02). Usá-las como Alvo 1 produzia:
+  //   Alvo 1 = 8,84 × ATR   (swing trade saudável: 2 a 4 ATR)
+  //   Alvo 2 = 13,87 × ATR
+  // Pior: o h50 (71,02) era REJEITADO porque o R/R era 0,71 < minRR (1,0) —
+  // e esse R/R baixo era consequência do STOP ERRADO (6,27 ATR). Os dois erros
+  // se compensavam em aparência: o alvo inflado "consertava" o R/R exibido.
+  //
+  // REGRA: nenhum alvo pode ultrapassar `preço + maxAlvoAtr × ATR` nem o topo
+  // histórico. Vale para o ativo em topo (h50 limita) e para o ativo lateral
+  // ou com topo distante (ATR limita).
+  // ===========================================================================
+  var atrAlvo = (atr > 0) ? atr : (preco * 0.02);
+  var tetoAlvoAtr = preco + (atrAlvo * CORE22_CFG.maxAlvoAtr);
+  var nivelTeto = (h50 > preco) ? Math.min(h50, tetoAlvoAtr) : tetoAlvoAtr;
+
   var alvo1 = preco + stopDist * CORE22_CFG.t1R;
   var alvo2 = preco + stopDist * CORE22_CFG.t2R;
   var rrRealista = (alvo1 - preco) / stopDist;
   var alvoSource = 'FIXO_MULTIPLO';
+  var alvoCapado = false;
+
   function _selecionarAlvo(niveisDisponiveis, precoAtual, stopDist, minRR) {
     minRR = minRR || 1.0;
     for (var n = 0; n < niveisDisponiveis.length; n++) {
@@ -363,6 +539,78 @@ function _processarGestaoRisco(preco, atr, estrutura, candles, closes) {
     rrRealista = (alvo1 - preco) / stopDist;
     alvoSource = 'FIXO_MULTIPLO_FALLBACK';
   }
+
+  // 🔧 v22.15 [CORREÇÃO C3]: APLICA O TETO DE ALVO
+  // ---------------------------------------------------------------------------
+  // Nenhum alvo pode ultrapassar `nivelTeto` (= min entre o topo histórico h50 e
+  // `preço + maxAlvoAtr × ATR`). Quando o alvo calculado excede o teto, ele é
+  // substituído pelo próprio teto e o R/R é recalculado — mantendo alvo e R/R
+  // sempre coerentes (a mesma garantia que o 28_Position_Geometry oferece).
+  //
+  // Caso BPAC11: alvo1 = 78,52 (8,84 ATR) → capado para 71,02 (h50, 4,4 ATR).
+  // ===========================================================================
+  if (nivelTeto > preco && alvo1 > nivelTeto) {
+    alvo1 = parseFloat(nivelTeto.toFixed(2));
+    alvoSource = 'CAPADO_' + alvoSource;
+    alvoCapado = true;
+    rrRealista = (alvo1 - preco) / stopDist;
+  }
+
+  // O Alvo 2 também respeita o teto, mas com uma folga de 50% sobre o Alvo 1
+  // para preservar a progressão dos parciais (nunca abaixo do Alvo 1).
+  var tetoAlvo2 = Math.max(alvo1 * 1.003, alvo1 + (alvo1 - stop) * 0.5);
+  if (alvo2 > tetoAlvo2) {
+    alvo2 = parseFloat(tetoAlvo2.toFixed(2));
+  }
+  if (alvo2 <= alvo1) {
+    alvo2 = parseFloat((alvo1 + (alvo1 - stop) * 0.5).toFixed(2));
+  }
+
+  // 🔧 v22.14 [C2]: SE A ESTRUTURA FIBONACCI NÃO FOR CONFIÁVEL, os alvos
+  // derivados dela são descartados e substituídos por múltiplos de ATR.
+  // Isso protege contra o caso BPAC11: um range de 43% do preço produzia
+  // extensões (78,52 / 87,08) que exigiam uma alta irreal (+23% / +37%).
+  //
+  // ⚠️ IMPORTANTE: quando o range é inválido, o STOP também foi contaminado
+  // por ele (o swing pivot pertencia ao mesmo range inflado). Substituir só o
+  // alvo gerava um R/R absurdo (alvo ATR a +5,4% contra um stop a −16,8% =>
+  // R/R 0,32). Por isso o stop é RECALCULADO em cima da volatilidade (ATR)
+  // sempre que a estrutura não é confiável — alvo e stop passam a compartilhar
+  // a mesma referência de volatilidade.
+  var alvoReancoradoPorAtr = false;
+  try {
+    if (estrutura && estrutura.fiboConfiavel === false) {
+      var atrBase = (atr > 0) ? atr : (preco * 0.02);
+      var atrAlvo1 = preco + (atrBase * CORE22_CFG.t1R);
+      var atrAlvo2 = preco + (atrBase * CORE22_CFG.t2R);
+
+      // Só substitui se os alvos Fibonacci eram MAIS distantes que os de ATR
+      if (atrAlvo1 > 0 && atrAlvo1 < alvo1) {
+        alvo1 = atrAlvo1;
+        alvo2 = atrAlvo2;
+        alvoSource = 'ATR_FALLBACK_RANGE_INVALIDO';
+        alvoReancoradoPorAtr = true;
+
+        // Re-ancora o STOP: mantém a distância de stop coerente com o alvo.
+        // Se o alvo é 2 ATRs, o risco passa a ser 1 ATR (R/R ≈ 2,0 de mercado).
+        var stopAtr = preco - atrBase;
+        // Respeita o piso de ruído para não colocar o stop dentro do barulho
+        var pisoRuido = Math.abs(preco) * CORE22_CFG.minStopPctFloor;
+        if ((preco - stopAtr) < pisoRuido) stopAtr = preco - pisoRuido;
+
+        // Só aceita o stop re-ancorado se ele for mais ADERENTE ao alvo
+        // (ou seja, menor distância que o stop contaminado pelo range)
+        if (stopAtr > stop && stopAtr < preco) {
+          stop = parseFloat(stopAtr.toFixed(4));
+          stopDist = preco - stop;
+          invalidoPorStop = false;
+        }
+        rrRealista = (alvo1 - preco) / stopDist;
+      }
+    }
+  } catch (eFibo) {
+    console.warn('⚠️ [Core22] Falha no fallback de alvo por ATR: ' + eFibo.message);
+  }
   return {
     stop: stop,
     alvo1: alvo1,
@@ -379,12 +627,28 @@ function _processarGestaoRisco(preco, atr, estrutura, candles, closes) {
       stopDistTecnico: stopDistTecnico,
       stopDistFinal: stopDist,
       invalidoPorStop: invalidoPorStop,
+      // 🔧 v22.15 [B]: indica que o stop foi cortado pelo teto em ATR (não pela %)
+      stopCortadoPorAtr: stopCortadoPorAtr,
+      tetoAtrStop: (isFinite(tetoAtrStop) ? parseFloat(tetoAtrStop.toFixed(4)) : null),
+      // 🔧 v22.15 [A]: lookback usado na busca do pivô (= structureLookback)
+      swingLookbackUsado: CORE22_CFG.structureLookback,
+      // 🔧 v22.15 [C3]: teto de alvo aplicado
+      alvoCapado: alvoCapado,
+      nivelTeto: parseFloat(nivelTeto.toFixed(2)),
+      tetoAlvoAtr: parseFloat(tetoAlvoAtr.toFixed(2)),
+      alvo1EmAtr: (atr > 0) ? parseFloat(((alvo1 - preco) / atr).toFixed(2)) : null,
+      stopEmAtr: (atr > 0) ? parseFloat((stopDist / atr).toFixed(2)) : null,
       stopSource: (swingStop != null && swingStop < preco) ? 'SWING_PIVOT' : 'ATR_FALLBACK',
       alvoSource: alvoSource,
+      // 🔧 v22.14: indica que alvo E stop foram re-ancorados no ATR porque a
+      // estrutura Fibonacci era não confiável (range fora de [5%, 35%]).
+      reancoradoPorAtr: alvoReancoradoPorAtr,
       h50: h50,
       l50: l50,
       fibo50: fibo50,
       fibo618: fibo618,
+      fiboConfiavel: (estrutura ? estrutura.fiboConfiavel : null),
+      rangePct: (estrutura ? estrutura.rangePct : null),
       h50_ext1: h50_ext1,
       h50_ext2: h50_ext2,
       rrDinamico: parseFloat(rrRealista.toFixed(2))
@@ -394,6 +658,13 @@ function _processarGestaoRisco(preco, atr, estrutura, candles, closes) {
 
 function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
   var s = 30;
+
+  // 🔍 DIAGNÓSTICO (Opção 2): acumulador de breakdown do score.
+  // Não altera o comportamento — apenas registra o quanto cada bloco de regras
+  // contribuiu (positivo/negativo) para o total. Permite identificar de onde
+  // vem um score 0 (ex: cascata ADX -45 + Volume -60, ver SCORE_ZERO_ROOT_CAUSE.md).
+  var _bd = { base: 30 };
+  var _snap = function(chave) { _bd[chave] = s; };
 
   // ✅ NOVO: Flag para identificar se é um setup de RADAR
   var isRadar = false;
@@ -425,6 +696,7 @@ function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
   if (preco > ind.ema21 && ind.ema21 > ind.ema50 && ind.ema50 > ind.ema200) {
     s += 15;
   }
+  _snap('aposTendencia');   // 🔍 diag: base + ADX + médias móveis
 
   // =========================================================================
   // 2. MOMENTUM (RSI COM COMPENSAÇÃO DE ADX)
@@ -470,6 +742,7 @@ function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
   if (ind.volumeRelativo < 0.6) {
     s -= 30; // Penalidade adicional cumulativa
   }
+  _snap('aposVolume');   // 🔍 diag: inclui a cascata de volume (-30 faixa + -30 veto)
 
   // =========================================================================
   // 4. CONFLUÊNCIA FIBONACCI E VOLUME RELATIVO (OTIMIZADA)
@@ -505,6 +778,7 @@ function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
   } else if (rsc && rsc.rrRealista < 1.8) {
     s -= 50;  // 🚨 PENALIDADE SEVERA
   }
+  _snap('aposRR');   // 🔍 diag: inclui Fibo/confluência + RR
 
   // =========================================================================
   // 6. PADRÕES DE PRICE ACTION
@@ -518,6 +792,26 @@ function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
   if (regime === "BULLISH") s += 15;
   if (regime === "DEFENSIVE") s -= 10; // Penalidade leve em mercado instável/defensivo para permitir boas oportunidades
   if (regime === "BEARISH") s -= 30;
+  _snap('aposMacro');   // 🔍 diag: inclui bônus/penalidade de regime (+15 / -10 / -30)
+
+  // =========================================================================
+  // 7.0 (v13.2) FORÇA RELATIVA — MOMENTUM RELATIVO vs. BENCHMARK (BOVA11)
+  // Premia ativos que BATEM o índice no curto prazo (21d) e penaliza os que
+  // ficam para trás. É o "double momentum" simplificado: só interessam líderes
+  // que superam o mercado. Best-effort: sem benchmark, não ajusta (fail-open).
+  // =========================================================================
+  try {
+    if (ibov && typeof ibov.benchmarkReturn21d === 'number' && est && typeof est.retorno21d === 'number') {
+      var rsRel = est.retorno21d - ibov.benchmarkReturn21d; // força relativa (decimal)
+      if (rsRel >= 0.10)       s += 12;  // muito acima do índice
+      else if (rsRel >= 0.05)  s += 8;
+      else if (rsRel >= 0.02)  s += 4;
+      else if (rsRel <= -0.10) s -= 12;  // muito abaixo do índice
+      else if (rsRel <= -0.05) s -= 8;
+      else if (rsRel <= -0.02) s -= 4;
+    }
+  } catch (eRS) { /* nunca deve quebrar o score */ }
+  _snap('aposForcaRelativa');   // 🔍 diag: inclui o ajuste de força relativa vs. BOVA11
 
   // =========================================================================
   // 7.1 CORRECAO v10.1: PENALIDADE POR EXTENSAO (DISTANCIA DA EMA21)
@@ -634,6 +928,7 @@ function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
   // 9. STOP INVIÁVEL
   // =========================================================================
   if (rsc && rsc.invalidoPorStop) s -= 50;
+  _snap('aposPenalidades');   // 🔍 diag: inclui extensão/topo/ganho rápido/Bollinger/stop inviável
 
   // =========================================================================
   // 10. BÔNUS MACRO
@@ -647,8 +942,52 @@ function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
   if (isRadar) {
     s = Math.min(s, 75);
   }
+  _snap('aposTetoRadar');   // 🔍 diag: captura o corte do teto (v22.13)
 
-  return Math.min(100, Math.max(0, Math.round(s)));
+  var _scoreFinal = Math.min(100, Math.max(0, Math.round(s)));
+
+  // 🔍 DIAGNÓSTICO (v22.13): emite o breakdown sempre que o score final é baixo
+  // (threshold configurável). Formato de uma linha, fácil de filtrar no log.
+  // Ex.: 🔍SCORE_BREAKDOWN|PETR4|base=30>tend=15>vol=-45>rr=-29>macro=-39|FINAL=0
+  //   raw  = soma das parcelas ANTES do teto de RADAR e do clamp 0..100.
+  //          Permite distinguir FINAL=0 causado por -1 (quase aprovado, ajuste
+  //          fino) de -300 (lixo estrutural) — antes ambos imprimiam "FINAL=0".
+  //   teto = corte efetivo do teto de RADAR (Math.min(s,75)), invisível no log
+  //          antigo porque o último snapshot acontecia ANTES dele.
+  try {
+    var limiar = (typeof CONFIG !== 'undefined' && typeof CONFIG.get === 'function')
+      ? Number(CONFIG.get('DIAG_SCORE_BREAKDOWN_LIMIAR', 40)) : 40;
+    if (_scoreFinal <= limiar) {
+      var _tk = (typeof ticker !== 'undefined' && ticker) ? ticker : '?';
+      var _somaParcelas = _bd.base +
+        (_bd.aposTendencia - _bd.base) +
+        ((_bd.aposVolume || _bd.aposTendencia) - _bd.aposTendencia) +
+        ((_bd.aposRR || 0) - (_bd.aposVolume || _bd.aposTendencia)) +
+        ((_bd.aposMacro || 0) - (_bd.aposRR || 0)) +
+        ((_bd.aposPenalidades || _bd.aposMacro || 0) - (_bd.aposMacro || 0));
+      var _raw = (_bd.aposTetoRadar !== undefined)
+        ? Math.round(_bd.aposTetoRadar)
+        : Math.round(_somaParcelas);
+      var _tetoAplicado = (_bd.aposTetoRadar !== undefined)
+        ? Math.round(_bd.aposTetoRadar) - Math.round(_somaParcelas) : 0;
+      console.log('🔍SCORE_BREAKDOWN|' + _tk +
+        '|base=' + _bd.base +
+        '>tend=' + (_bd.aposTendencia - _bd.base) +
+        '>rsiVol=' + ((_bd.aposVolume || _bd.aposTendencia) - _bd.aposTendencia) +
+        '>fiboRR=' + ((_bd.aposRR || 0) - (_bd.aposVolume || _bd.aposTendencia)) +
+        '>macro=' + ((_bd.aposMacro || 0) - (_bd.aposRR || 0)) +
+        '>penal=' + ((_bd.aposPenalidades || _bd.aposMacro || 0) - (_bd.aposMacro || 0)) +
+        '|teto=' + (isRadar ? 'SIM(' + _tetoAplicado + ')' : 'nao') +
+        '|adx=' + (ind && ind.adx != null ? Number(ind.adx).toFixed(1) : '?') +
+        '|volRel=' + (ind && ind.volumeRelativo != null ? Number(ind.volumeRelativo).toFixed(2) : '?') +
+        '|rsi=' + (ind && ind.rsi != null ? Number(ind.rsi).toFixed(1) : '?') +
+        '|regime=' + regime +
+        '|raw=' + _raw +
+        '|FINAL=' + _scoreFinal);
+    }
+  } catch (e) { /* diagnóstico nunca deve quebrar o cálculo */ }
+
+  return _scoreFinal;
 }
 
 function _identificarSetup(rr, inFibo, score, preco, ind, risco) {
@@ -1015,7 +1354,7 @@ function _core_getLastPivotLow(candles, lookback, leftBars, rightBars) {
 
 
 
-function _core_getVolumeRelativo(candles, period) {
+function _core_getVolumeRelativo(candles, period, ticker) {
   period = period || 20;
   
   if (!candles || candles.length < period + 1) {
@@ -1033,12 +1372,107 @@ function _core_getVolumeRelativo(candles, period) {
 
   if (!vols.length) return 1.0;
 
-  // Usar mediana para robustez contra outliers
-  var median = _core_getMedian(vols);
   var lastVol = Number(candles[candles.length - 1].volume || 0);
 
+  // Estatísticas da janela: mediana, média, máximo e MÍNIMO.
+  var median = _core_getMedian(vols);
+  var somaVols = 0, maxVols = 0, minVols = Infinity;
+  for (var iv = 0; iv < vols.length; iv++) {
+    somaVols += vols[iv];
+    if (vols[iv] > maxVols) maxVols = vols[iv];
+    if (vols[iv] < minVols) minVols = vols[iv];
+  }
+  var mediaVols = somaVols / vols.length;
+  if (minVols === Infinity) minVols = 0;
+
   if (median === 0) return 1.0;
-  return parseFloat((lastVol / median).toFixed(3));
+
+  // =======================================================================
+  // 🛡️ GUARDA DE SANIDADE DO VOLUME (v22.13 — BASE ROBUSTA A OUTLIERS)
+  // -----------------------------------------------------------------------
+  // Diagnóstico em produção (11/09): séries dos provedores vinham com volumes
+  // DUPLICADOS/inflados. Ex.: PETR4 com volHoje=27,6M mas mediana=46,9M e
+  // max20=85,9M (3,1x o volume real). Isso fazia volRel cair para 0,589 e
+  // disparar a penalidade dupla de volume (-60) indevidamente.
+  //
+  // Fundamentação: duplicação de dados apenas INFLACIONA o volume — nunca o
+  // reduz. Se a mediana está muito acima do mínimo, ela está inflada por
+  // picos espúrios e NÃO representa o volume típico real do ativo.
+  //
+  // 🔧 v22.13 — DOIS DEFEITOS CORRIGIDOS NA VERSÃO ANTERIOR:
+  //   1) A "base robusta" era a MÉDIA dos 30% menores. Uma ÚNICA leitura
+  //      espúria BAIXA (pane/0/1) contaminava o cluster:
+  //      janela=[50,900,900,900,900,900,...] → 6 menores=[50,900,900,900,900,900]
+  //      → base=758 (correto: 900) → volRel=0,079 → veto duplo -60 INDEVIDO.
+  //      Agora usamos o MENOR valor do cluster central (quantil 35), que é
+  //      robusto a outliers tanto altos (inflação) quanto baixos (pane).
+  //   2) volume==0 no último candle (feriado/falha de provedor) era tratado
+  //      como ILIQUIDEZ (volRel=0 → -60). Dado AUSENTE não é dado ruim:
+  //      agora retorna 1.0 (neutro) sem penalizar o score.
+  // =======================================================================
+  // 🔧 v22.16 [CORREÇÃO B8]: heurística de "volumes inflados" recalibrada.
+  // A regra anterior (median > minVols*1.5) era sensível a UM único pane de
+  // baixa (0/1/feriado) e marcava ~100% do universo como "inflado". Nova
+  // regra exige DUAS evidências de inflação real (duplicação/expansão de
+  // série), tipicamente alta nos DOIS extremos da distribuição:
+  //   (a) mediana bem acima do piso ROBUSTO (quantil 5%), insensível a 1 pane;
+  //   (b) pico de cauda alta (max20 > 2.5x mediana) — assinatura de picos espúrios.
+  var _volsOrdenados = vols.slice().sort(function (a, b) { return a - b; });
+  var _q05 = _volsOrdenados[Math.min(_volsOrdenados.length - 1, Math.floor(_volsOrdenados.length * 0.05))];
+  var _pisoRobusto = (_q05 > 0) ? _q05 : minVols;
+  var _caudaAlta = maxVols > (median * 2.5);
+  var BASE_SUSPEITA = (median > (_pisoRobusto * 1.5)) && _caudaAlta;
+  var baseUsada = median;
+
+  if (BASE_SUSPEITA) {
+    // Cluster central: descarta ~15% das caudas de cada lado e toma o menor
+    // do miolo. Robusto a outliers baixos (não é arrastado por panes) e a
+    // outliers altos (não é inflado por picos de duplicação).
+    var _qLow = Math.floor(_volsOrdenados.length * 0.15);
+    baseUsada = _volsOrdenados[_qLow];
+  }
+
+  if (!(baseUsada > 0)) return 1.0;
+  // ✅ Dado AUSENTE (não iliquidez): sem volume no último candle não há
+  // informação para julgar liquidez. Retorna neutro e NÃO penaliza.
+  if (!(lastVol > 0)) {
+    console.warn('⚠️ [Volume] Último candle sem volume (dado ausente) — usando 1.0 neutro.');
+    return 1.0;
+  }
+
+  var volRel = parseFloat((lastVol / baseUsada).toFixed(3));
+
+  // 🔍 DIAGNÓSTICO: registra a decisão da guarda e os insumos.
+  // Formato: 🔍VOL_DIAG|TICKER|volHoje=..|base=..|baseSuspeita=..|mediana20=..|pisoRobusto=..|caudaAlta=..
+  //          |media20=..|max20=..|min20=..|volRel=..|nVols=..|dataUlt=..|ultimoCandleEhHoje=..
+  try {
+    var _tkVol = (typeof ticker !== 'undefined' && ticker) ? ticker : '?';
+    var _ult = candles[candles.length - 1];
+    var _dataUlt = _ult && _ult.date ? String(_ult.date) : '?';
+    var _ultimoDiaUtil = new Date();
+    var _ehHoje = _ult && _ult.date && (new Date(_ult.date).toDateString() === _ultimoDiaUtil.toDateString());
+    console.log('🔍VOL_DIAG|' + _tkVol +
+      '|volHoje=' + lastVol +
+      '|base=' + Math.round(baseUsada) +
+      '|baseSuspeita=' + (BASE_SUSPEITA ? 'SIM(base=quantil15)' : 'nao') +
+      '|pisoRobusto=p05' + Math.round(_pisoRobusto) +
+      '|caudaAlta=' + (_caudaAlta ? 'SIM' : 'nao') +
+      '|mediana20=' + median +
+      '|media20=' + Math.round(mediaVols) +
+      '|max20=' + maxVols +
+      '|min20=' + minVols +
+      '|volRel=' + volRel +
+      '|nVols=' + vols.length +
+      '|dataUlt=' + _dataUlt +
+      '|ultimoCandleEhHoje=' + (_ehHoje ? 'SIM(possível parcial)' : 'nao'));
+    if (BASE_SUSPEITA) {
+      console.warn('⚠️ [Volume] Série com volumes inflados: mediana=' + median +
+        ' > pisoRobusto(p05)*1.5 (' + (_pisoRobusto * 1.5).toFixed(0) + ') e max20=' + maxVols +
+        ' > 2.5x mediana. Base corrigida para ' + Math.round(baseUsada) + ' → volRel=' + volRel);
+    }
+  } catch (e) { /* diagnóstico nunca quebra o cálculo */ }
+
+  return volRel;
 }
 
 
@@ -1148,6 +1582,54 @@ function _determinarEstrategiaEntrada(setup, score, estrutura, preco, ind, risco
 // ============================================================================
 
 
+/**
+ * DIAGNÓSTICO: Volume Relativo por ticker (chama o caminho REAL do pipeline).
+ *
+ * Racional: a guarda de sanidade do volume (mediana vs. min20) só existe dentro
+ * de DataService.getMarketData → STRATEGY_EVALUATE_CORE. Chamadas no-op no escopo
+ * global (chamada solta) usam `ticker` indefinido e só funcionam se algum módulo
+ * deixar um `ticker` residual no escopo global — o que explica o diagnóstico de
+ * produção aparecer com ticker vazio ('|' após VOL_DIAG).
+ *
+ * Uso: DIAGNOSTICAR_VOLUME('PETR4', 'VALE3', 'ITUB4', 'BBAS3', 'BPAC11')
+ *
+ * @param {...string} tickers Tickers a auditar (default: amostra líquida)
+ * @returns {Array<Object>} Linhas de diagnóstico já formatadas
+ */
+function DIAGNOSTICAR_VOLUME() {
+  var tickers = Array.prototype.slice.call(arguments);
+  if (!tickers.length) tickers = ['PETR4', 'VALE3', 'ITUB4', 'BBAS3', 'BPAC11', 'WEGE3'];
+
+  var linhas = [];
+  for (var i = 0; i < tickers.length; i++) {
+    var tk = tickers[i];
+    var res = null;
+    try {
+      res = DataService.getMarketData(tk);
+    } catch (e) {
+      console.error('❌ [DIAG_VOLUME] DataService falhou para ' + tk + ': ' + e.message);
+      continue;
+    }
+    var candles = (res && Array.isArray(res.candles)) ? res.candles : (Array.isArray(res) ? res : null);
+    if (!candles || candles.length < 21) {
+      console.warn('⚠️ [DIAG_VOLUME] ' + tk + ': candles insuficientes ('
+        + (candles ? candles.length : 0) + '). Verifique provedor/cache.');
+      continue;
+    }
+    var ind = _calcularIndicadoresTecnicos(candles, candles.map(function (c) { return c.close; }), tk);
+    var linha = {
+      ticker: tk,
+      candles: candles.length,
+      volHoje: Number(candles[candles.length - 1].volume || 0),
+      volRel: ind.volumeRelativo
+    };
+    linhas.push(linha);
+    console.log('📊 [DIAG_VOLUME] ' + tk + ' | volHoje=' + linha.volHoje +
+      ' | volRel=' + linha.volRel + ' | nCandles=' + linha.candles);
+  }
+  return linhas;
+}
+
 function DIAGNOSTICAR_INDICADORES(ticker) {
   ticker = ticker || "PETR4";
   console.log("🔍 DIAGNOSTICANDO INDICADORES PARA: " + ticker);
@@ -1176,7 +1658,7 @@ function DIAGNOSTICAR_INDICADORES(ticker) {
     console.log("   ✅ " + candles.length + " candles obtidos");
     
     var context = _obterContextoPrecos(candles);
-    var ind = _calcularIndicadoresTecnicos(candles, context.closes);
+    var ind = _calcularIndicadoresTecnicos(candles, context.closes, ticker);
     
     console.log("📊 RESULTADOS:");
     console.log("  - ADX: " + (ind.adx !== undefined && ind.adx !== null ? ind.adx : "NÃO CALCULADO"));

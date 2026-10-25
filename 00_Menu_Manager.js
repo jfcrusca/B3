@@ -32,6 +32,7 @@ var MenuTriade = (function () {
       .addItem("🛡️ Executar Trailing Stop & Estatísticas", "MENU_ATUALIZAR_ESTATISTICAS")
       .addItem("⚖️ Sincronizar Carteira (Stops e Alvos)", "MENU_SYNC_PORTFOLIO")
       .addSeparator()
+      .addItem("🔄 Atualizar Cotações da Carteira (Cotacoes_Live)", "INSTALAR_FORMULAS_COTACAO_CARTEIRA")
       .addItem("🚨 Verificar Compliance e Risco", "MENU_COMPLIANCE")
       .addToUi();
 
@@ -41,6 +42,9 @@ var MenuTriade = (function () {
       .addItem("🛑 DESLIGAR Robô (Remover Triggers)", "MENU_DESATIVAR_AUTOMACAO")
       .addSeparator()
       .addItem("🧪 Testar Motor de Simulação", "MENU_TESTAR_SISTEMA_SIMULACAO")
+      .addSeparator()
+      .addItem("📉 Diagnóstico de Oportunidade Perdida", "MENU_DIAGNOSTICO_OPORTUNIDADE_PERDIDA")
+      .addItem("📈 Gráfico do Histórico de Oportunidade", "MENU_GERAR_GRAFICO_DIAG")
       .addToUi();
 
     // MENU 4: 🛠️ MANUTENÇÃO (Testes e Debug)
@@ -134,15 +138,34 @@ function MENU_ATUALIZAR_ESTATISTICAS() {
   }
 }
 
+/**
+ * ⚖️ Sincronizar Carteira (Stops e Alvos)
+ * 🔧 v12.8: executa DUAS etapas complementares:
+ *   1) PortfolioUnified.syncPortfolio()      → atualiza a coluna H (Cotação Atual);
+ *   2) PortfolioRebalancer.executarSincronizacao() → preenche M..T (Sugestão,
+ *      Stop Ideal, Alvo Ideal, Alvo 1/2, Alvo Médio, Risco R$).
+ * Antes, apenas a etapa 1 era chamada — por isso as colunas M..T ficavam vazias.
+ */
 function MENU_SYNC_PORTFOLIO() {
+  let okAlgo = false;
+
+  // Etapa 1: cotação (coluna H)
   if (typeof PortfolioUnified !== 'undefined' && typeof PortfolioUnified.syncPortfolio === 'function') {
-    PortfolioUnified.syncPortfolio();
-  } else {
-    SpreadsheetApp.getUi().alert(
-      '⚠️ Erro',
-      'Módulo 30_Portfolio_Unified não carregado. Verifique os arquivos do projeto.',
-      SpreadsheetApp.getUi().ButtonSet.OK
-    );
+    try { PortfolioUnified.syncPortfolio(); okAlgo = true; }
+    catch (e) { console.error('❌ [MENU_SYNC_PORTFOLIO] PortfolioUnified: ' + e.message); }
+  }
+
+  // Etapa 2: gestão de stops/alvos (colunas M..T) — Rebalancer
+  if (typeof PortfolioRebalancer !== 'undefined' && typeof PortfolioRebalancer.executarSincronizacao === 'function') {
+    try { PortfolioRebalancer.executarSincronizacao(); okAlgo = true; }
+    catch (e) { console.error('❌ [MENU_SYNC_PORTFOLIO] PortfolioRebalancer: ' + e.message); }
+  } else if (typeof EXECUTAR_SINCRONIZACAO_CARTEIRAS === 'function') {
+    try { EXECUTAR_SINCRONIZACAO_CARTEIRAS(); okAlgo = true; }
+    catch (e) { console.error('❌ [MENU_SYNC_PORTFOLIO] EXECUTAR_SINCRONIZACAO_CARTEIRAS: ' + e.message); }
+  }
+
+  if (!okAlgo) {
+    b3UiAlert('⚠️ Erro', 'Módulos de carteira (30_Portfolio_Unified / 31_Portfolio_Rebalancer) não carregados. Verifique os arquivos do projeto.');
   }
 }
 

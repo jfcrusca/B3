@@ -25,9 +25,19 @@ var AIAgenticEnricher = {
         op.bbLabelAdj = bbAcima ? "⚠️ ACIMA DA BANDA" : bbAbaixo ? "📉 ABAIXO DA BANDA" : "DENTRO DAS BANDAS";
 
         // 3️⃣ Manutenção da integridade do pipeline (valores neutros)
-        op.aiScore = op.score;
-        op.enrichedScore = op.score;
-        op.sentiment = "NEUTRAL"; 
+        // 🔧 B2: contrato canônico — este caminho não tem IA real, então
+        // scoreTecnico = score e scoreIA = null (nenhum ajuste aplicado).
+        var _pac = (typeof ScorePolicy !== 'undefined' && typeof ScorePolicy.consolidar === 'function')
+          ? ScorePolicy.consolidar(op.score, null)
+          : { scoreFinal: op.score, scoreTecnico: op.score, scoreIA: null, ajusteIA: 0 };
+        op.scoreTecnico = _pac.scoreTecnico;
+        op.scoreIA = _pac.scoreIA;
+        op.scoreFinal = _pac.scoreFinal;
+        op.ajusteIA = _pac.ajusteIA;
+        op.aiScore = null;
+        op.enrichedScore = _pac.scoreFinal;
+        op.ensembleScore = _pac.scoreFinal;
+        op.sentiment = "NEUTRAL";
 
         return op;
 
@@ -103,8 +113,18 @@ IMPORTANTE:
     const payload = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json"
+        // 🔧 v7.4 (Gemini 3.x — AUDITORIA AI STUDIO 2026):
+        //   • 'temperature'/'topP'/'topK' REMOVIDOS (depreciados/rejeitados).
+        //   • 'thinkingLevel' movido para thinkingConfig (aninhado). No topo do
+        //     payload a API retorna 400 'Unknown name "thinkingLevel"'.
+        responseMimeType: "application/json",
+        thinkingConfig: {
+          thinkingLevel: normalizeThinkingLevel_15(
+            (typeof CONFIG !== 'undefined' && CONFIG.get('GEMINI_THINKING_LEVEL'))
+              ? CONFIG.get('GEMINI_THINKING_LEVEL')
+              : 'medium'
+          )
+        }
       }
     };
 
@@ -154,3 +174,15 @@ IMPORTANTE:
   }
 }
 };
+
+/**
+ * Normaliza o nível de raciocínio para um valor aceito pela API Gemini 3.x.
+ * A API só aceita "minimal" | "low" | "medium" | "high"; qualquer outro valor
+ * (ou vazio) cai no default 'medium' para evitar erro 400 INVALID_ARGUMENT.
+ * @param {string} level Nível desejado.
+ * @returns {string} Nível validado.
+ */
+function normalizeThinkingLevel_15(level) {
+  const v = String(level || '').trim().toLowerCase();
+  return ['minimal', 'low', 'medium', 'high'].indexOf(v) !== -1 ? v : 'medium';
+}

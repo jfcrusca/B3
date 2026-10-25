@@ -1,11 +1,31 @@
 /**
  * =============================================================================
- * 50_preMarketAnalysis.gs — v5.1 (SNIPER EDITION FIXED)
+ * 50_preMarketAnalysis.gs — v5.2 (SNIPER EDITION FIXED)
  * =============================================================================
  * ✅ CORREÇÃO: Argumentos passados corretamente para o HTML.
  * ✅ FEATURE: Cálculo automático de % de Lucro e Cores de Status.
  * ✅ FEATURE: Sugestões automáticas de Trailing Stop (Breakeven).
+ * 🔧 v5.2: CORRIGIDO mapeamento de colunas — "Preço Médio" estava lido da
+ *          coluna F (Última Compra/data). Agora usa a coluna G correta.
+ *          Mapa alinhado ao cabeçalho real da aba 'Carteira' (A..S / 19 colunas).
  */
+
+// Mapa 0-based das colunas da aba 'Carteira' (cabeçalho real do usuário).
+// A=Tipo(0) B=Papel(1) C=Qtd(2) D=ValorLíquido(3) E=1ªCompra(4) F=ÚltimaCompra(5)
+// G=PreçoMédioOrdem(6) H=CotaçãoAtual(7) I=Lucro/Prejuízo(8) J=Proventos(9)
+// K=Lucro/Prejuízo%(10) L=Participação%(11) M=🤖SUGESTÃO(12) N=🛑STOP IDEAL(13)
+// O=🎯ALVO IDEAL(14) P=🛡️SEU STOP OCO(15) Q=🏁ALVO1(16) R=🏁ALVO2(17)
+// S=📊ALVO MÉDIO(18) T=💸RISCO R$(19)
+var CARTEIRA_COL = {
+  TICKER: 1,        // B - Papel
+  PRECO_MEDIO: 6,   // G - Preço Médio Ordem
+  COTACAO: 7,       // H - Cotação Atual
+  LUCRO_RS: 8,      // I - Lucro/Prejuízo
+  STOP_OCO: 15,     // P - SEU STOP (OCO)
+  ALVO1: 16,        // Q - ALVO 1 (50%)
+  ALVO2: 17,        // R - ALVO 2 (50%)
+  RISCO_RS: 19      // T - RISCO R$
+};
 
 // --- FUNÇÃO PARA O BOTÃO/MENU ---
 function VISUALIZAR_MONITORAMENTO() {
@@ -30,16 +50,23 @@ function preMarketAnalysis_Inteligente(forcarVisual = false) {
   for (let i = 1; i < valores.length; i++) {
     const row = valores[i];
     
-    // Mapeamento de Colunas (Ajuste se necessário)
-    const ticker     = String(row[1]).trim(); // Col B
-    const precoMedio = parseFloat(row[5]) || 0; // Col F (Necessário para calcular %)
-    const precoAtual = parseFloat(row[7]) || 0; // Col H
-    const lucroReais = parseFloat(row[8]) || 0; // Col I
+    // 🔧 v5.2: Mapeamento alinhado ao cabeçalho real (A..S) via CARTEIRA_COL.
+    const ticker     = String(row[CARTEIRA_COL.TICKER]).trim();      // B - Papel
+    // 🔧 CORREÇÃO: Preço Médio vem de G (índice 6), não de F (Última Compra).
+    // Fallback: se G vazio, deriva de Valor Líquido (D) / Qtd (C).
+    const qtd        = parseFloat(row[2]) || 0;                      // C - Qtd
+    const valorLiq   = parseFloat(row[3]) || 0;                      // D - Valor Líquido
+    let precoMedio   = parseFloat(row[CARTEIRA_COL.PRECO_MEDIO]) || 0; // G
+    if (precoMedio <= 0 && qtd > 0 && valorLiq > 0) {
+      precoMedio = valorLiq / qtd; // fallback: custo médio real
+    }
+    const precoAtual = parseFloat(row[CARTEIRA_COL.COTACAO]) || 0;   // H - Cotação Atual
+    const lucroReais = parseFloat(row[CARTEIRA_COL.LUCRO_RS]) || 0;  // I - Lucro/Prejuízo
     
-    // Colunas de Gestão (OCO)
-    const stopReal   = parseFloat(row[15]) || 0; // P
-    const alvo1      = parseFloat(row[16]) || 0; // Q
-    const alvo2      = parseFloat(row[17]) || 0; // R
+    // Colunas de Gestão (OCO) — onde VOCÊ configura o stop na corretora
+    const stopReal   = parseFloat(row[CARTEIRA_COL.STOP_OCO]) || 0;  // P - SEU STOP (OCO)
+    const alvo1      = parseFloat(row[CARTEIRA_COL.ALVO1]) || 0;     // Q - ALVO 1 (50%)
+    const alvo2      = parseFloat(row[CARTEIRA_COL.ALVO2]) || 0;     // R - ALVO 2 (50%)
 
     if (!ticker || ticker === "Papel" || precoAtual <= 0) continue;
 

@@ -31,6 +31,100 @@ var BolsaiFetcher = (function() {
   var _circuitOpenTime = 0;
   var CIRCUIT_COOLDOWN_MS = 300000; // 5 min
 
+  // 🔧 v14.3 (ANTI-TIMEOUT / OPÇÃO C): Cache de endpoints que retornaram 404/erro
+  // permanente para um dado ticker. Evita repetir a MESMA requisição inútil na
+  // mesma execução: hoje o getHistory tenta 2 variantes de URL e o getQuote tenta
+  // até 4 endpoints (2 formatos × /quote + /stats), gastando round-trips que já
+  // sabemos que vão falhar. Chave: 'TICKER|endpoint'. Valor: timestamp da falha.
+  var _endpointMissCache = {};
+  var ENDPOINT_MISS_TTL_MS = 600000; // 10 min (mesma ordem do CACHE_TTL de 5 min, com folga)
+
+  // 🔧 v14.3: requisições de rede efetivamente disparadas nesta execução
+  // (instrumentação para medir o ganho da otimização nos logs).
+  var _metrics = { requests: 0, cacheHits: 0, missesEvitados: 0 };
+
+  /** 🔧 v14.3: Verifica se um endpoint já falhou recentemente para o ticker. */
+  function _isEndpointMiss(ticker, endpoint) {
+    var k = ticker + '|' + endpoint;
+    var ts = _endpointMissCache[k];
+    if (ts && (Date.now() - ts) < ENDPOINT_MISS_TTL_MS) return true;
+    return false;
+  }
+
+  /** 🔧 v14.3: Registra que um endpoint falhou (só para erros PERMANENTES). */
+  function _markEndpointMiss(ticker, endpoint) {
+    _endpointMissCache[ticker + '|' + endpoint] = Date.now();
+  }
+
+  /**
+   * 🔧 v14.3: Resultado de uma tentativa de requisição com classificação de erro.
+   * Distinguir 404 (permanente: não repetir) de 429/5xx (transitório: pode repetir)
+   * é o que permite cortar o desperdício sem quebrar o fallback legítimo.
+   * @param {string} endpoint
+   * @param {string} ticker
+   * @returns {{data: (Object|null), permanente: (boolean|null)}} permanente=true
+   *          quando o endpoint não deve mais ser tentado para este ticker.
+   */
+  function _requestClassificado(endpoint, ticker) {
+    if (_isEndpointMiss(ticker, endpoint)) {
+      _metrics.missesEvitados++;
+      console.log('⏭️ [Bolsai] Pulando ' + endpoint + ' para ' + ticker + ' (404 recente em cache)');
+      return { data: null, permanente: true };
+    }
+    if (_isCircuitOpen()) {
+      console.warn('⏭️ [Bolsai] Circuit breaker ABERTO. Pulando ' + endpoint);
+      return { data: null, permanente: false };
+    }
+
+    var key = _getApiKey();
+    if (!key) {
+      console.warn('⚠️ [Bolsai] BOLSAI_KEY não configurada. Pule fallback Bolsai.');
+      return { data: null, permanente: false };
+    }
+
+    var url = BASE_URL + '/' + endpoint;
+    var options = {
+      method: 'get',
+      headers: { 'X-API-Key': key, 'Accept': 'application/json' },
+      muteHttpExceptions: true
+    };
+
+    try {
+      _metrics.requests++;
+      var response = UrlFetchApp.fetch(url, options);
+      var code = response.getResponseCode();
+
+      if (code === 200) {
+        _consecutive429 = 0;
+        return { data: JSON.parse(response.getContentText()), permanente: null };
+      }
+
+      if (code === 429) {
+        _consecutive429++;
+        if (_consecutive429 >= 3) {
+          _circuitOpen = true;
+          _circuitOpenTime = Date.now();
+          console.error('bolsai Circuit breaker ATIVADO apos 3 falhas 429.');
+        }
+        console.warn('bolsai Rate limit (429) para ' + endpoint + ' (tentativa ' + _consecutive429 + '/3)');
+        return { data: null, permanente: false }; // transitório — pode repetir
+      }
+
+      if (code === 404 || code === 422) {
+        // Permanente: o recurso não existe com este formato. Não repetir.
+        _markEndpointMiss(ticker, endpoint);
+        console.warn('bolsai HTTP ' + code + ' para ' + endpoint + ' (marcado como inexistente)');
+        return { data: null, permanente: true };
+      }
+
+      console.warn('bolsai HTTP ' + code + ' para ' + endpoint);
+      return { data: null, permanente: false };
+    } catch (e) {
+      console.warn('bolsai Excecao em ' + endpoint + ': ' + e.message);
+      return { data: null, permanente: false };
+    }
+  }
+
   /**
    * Obtém a chave de API das Script Properties (segurança).
    * @returns {string} Chave BOLSAI_KEY ou vazia se não configurada
@@ -74,57 +168,12 @@ var BolsaiFetcher = (function() {
   }
 
   /**
-   * Realiza uma requisição autenticada à API Bolsai.
-   * @param {string} endpoint - Ex: 'stocks/PETR4'
-   * @returns {Object|null} Objeto JSON parse ou null em erro
+   * 🔧 v14.3 (OPÇÃO C): _request() legado REMOVIDO. Toda chamada de rede passa
+   * por _requestClassificado(), que distingue erro PERMANENTE (404/422 — não
+   * repetir) de TRANSITÓRIO (429/5xx/rede — pode repetir) e alimenta o
+   * _endpointMissCache. Sem essa classificação, cada ticker gastava até 6
+   * round-trips na Bolsai (2 variantes de /history + 2 formatos × /quote+/stats).
    */
-  function _request(endpoint) {
-    if (_isCircuitOpen()) {
-      console.warn('⏭️ [Bolsai] Circuit breaker ABERTO. Pulando ' + endpoint);
-      return null;
-    }
-
-    var key = _getApiKey();
-    if (!key) {
-      console.warn('⚠️ [Bolsai] BOLSAI_KEY não configurada. Pule fallback Bolsai.');
-      return null;
-    }
-
-    var url = BASE_URL + '/' + endpoint;
-    var options = {
-      method: 'get',
-      headers: {
-        'X-API-Key': key,
-        'Accept': 'application/json'
-      },
-      muteHttpExceptions: true
-    };
-
-    try {
-      var response = UrlFetchApp.fetch(url, options);
-      var code = response.getResponseCode();
-
-      if (code === 200) {
-        _consecutive429 = 0; // reset ao sucesso
-        return JSON.parse(response.getContentText());
-      } else if (code === 429) {
-        _consecutive429++;
-        if (_consecutive429 >= 3) {
-          _circuitOpen = true;
-          _circuitOpenTime = Date.now();
-          console.error('bolsai Circuit breaker ATIVADO apos 3 falhas 429.');
-        }
-        console.warn('bolsai Rate limit (429) para ' + endpoint + ' (tentativa ' + _consecutive429 + '/3)');
-        return null;
-      } else {
-        console.warn('bolsai HTTP ' + code + ' para ' + endpoint);
-        return null;
-      }
-    } catch (e) {
-      console.warn('bolsai Excecao em ' + endpoint + ': ' + e.message);
-      return null;
-    }
-  }
 
   /**
    * Gera as variações de formato de ticker aceitas pela API Bolsai.
@@ -176,21 +225,40 @@ var BolsaiFetcher = (function() {
     // 🔧 CORREÇÃO v14.2+: A Bolsai usa sub-rotas (/quote, /stats). Além disso,
     // para BDRs (ex: JBSS32), tentamos também o ticker ordinário (JBSS3) via
     // _tickerFormats, pois a Bolsai pode indexar sob o código antigo.
+    // 🔧 v14.3 (OPÇÃO C): Se o PRIMEIRO formato (canônico) funciona, os formatos
+    // alternativos (código ordinário do BDR) NÃO são tentados em /quote e /stats
+    // de novo — cortando requisições redundantes.
     var formats = _tickerFormats(ticker);
     if (formats.length === 0) formats = [clean];
 
-    var quoteEndpoints = [];
+    var data = null;
+
+    // Passo 1: para CADA formato, tenta o endpoint canônico /quote.
+    // Só avança ao próximo formato se o /quote do anterior falhar PERMANENTEMENTE.
     for (var f = 0; f < formats.length; f++) {
-      quoteEndpoints.push('stocks/' + formats[f] + '/quote');
-      quoteEndpoints.push('stocks/' + formats[f] + '/stats');
+      var epQuote = 'stocks/' + formats[f] + '/quote';
+      var rq = _requestClassificado(epQuote, clean);
+      if (_extractPrice(rq.data) !== null) {
+        data = rq.data;
+        break;
+      }
+      // Erro transitório (429/rede): não faz sentido tentar o formato alternativo
+      // agora — as condições de rede não mudaram. Encerra o loop.
+      if (rq.permanente !== true) break;
+      // permanente === true → formato inexistente. Tenta o alternativo (BDR).
     }
 
-    var data = null;
-    for (var q = 0; q < quoteEndpoints.length; q++) {
-      var tentative = _request(quoteEndpoints[q]);
-      if (_extractPrice(tentative) !== null) {
-        data = tentative;
-        break;
+    // Passo 2: SÓ se o /quote falhou permanentemente em TODOS os formatos,
+    // tenta /stats (que é um endpoint diferente, não uma redundância).
+    if (!data && _extractPrice(data) === null) {
+      for (var f2 = 0; f2 < formats.length; f2++) {
+        var epStats = 'stocks/' + formats[f2] + '/stats';
+        var rs = _requestClassificado(epStats, clean);
+        if (_extractPrice(rs.data) !== null) {
+          data = rs.data;
+          break;
+        }
+        if (rs.permanente !== true) break;
       }
     }
 
@@ -306,24 +374,45 @@ var BolsaiFetcher = (function() {
 
     // 🔧 CORREÇÃO v14.2: Usa apenas o ticker puro (sem .SA/.BSP que causam 422)
     // e tenta variações de query (com/sem limit) caso o parâmetro não seja aceito.
+    // 🔧 v14.3 (OPÇÃO C): As variantes agora são tentadas com CLASSIFICAÇÃO de erro.
+    // A variante 2 (sem `?limit`) só é tentada se a variante 1 falhar
+    // PERMANENTEMENTE (404/422 — ex.: o parâmetro `limit` foi rejeitado). Em erro
+    // transitório (429/rede), repetir a MESMA rota sem o parâmetro é desperdício
+    // puro de round-trip, pois a condição de falha é idêntica.
     var formats = _tickerFormats(ticker);
     if (formats.length === 0) formats = [clean];
-    var candles = null;
 
-    // Lista de variantes de URL para o histórico
+    // Lista de variantes de URL para o histórico (ordem: mais específica primeiro)
     var historyVariants = [
-      'stocks/' + formats[0] + '/history?limit=' + limit,
-      'stocks/' + formats[0] + '/history'
+      { ep: 'stocks/' + formats[0] + '/history?limit=' + limit },
+      { ep: 'stocks/' + formats[0] + '/history' }
     ];
 
     for (var v = 0; v < historyVariants.length; v++) {
-      var raw = _request(historyVariants[v]);
-      var normalized = _normalizeHistory(raw, ticker);
+      var rq = _requestClassificado(historyVariants[v].ep, clean);
+      var normalized = _normalizeHistory(rq.data, ticker);
       if (normalized && normalized.length >= 18) {
         try { cache.put(cacheKey, JSON.stringify(normalized), CACHE_TTL); } catch (e) { /* ignore */ }
         return normalized;
       }
-      candles = null;
+      // Transitório → não insiste nas outras variantes da MESMA rota.
+      if (rq.permanente !== true) break;
+    }
+
+    // 🔧 v14.3: Último recurso para BDRs — se TODAS as variantes do formato
+    // canônico falharam permanentemente e existe um formato alternativo
+    // (ex.: JBSS32 → JBSS3), tenta o histórico do código alternativo.
+    if (formats.length > 1) {
+      for (var f = 1; f < formats.length; f++) {
+        var epAlt = 'stocks/' + formats[f] + '/history?limit=' + limit;
+        var rqAlt = _requestClassificado(epAlt, clean);
+        var normAlt = _normalizeHistory(rqAlt.data, ticker);
+        if (normAlt && normAlt.length >= 18) {
+          console.log('📡 [Bolsai] Histórico obtido via código alternativo ' + formats[f] + ' para ' + clean);
+          try { cache.put(cacheKey, JSON.stringify(normAlt), CACHE_TTL); } catch (e) { /* ignore */ }
+          return normAlt;
+        }
+      }
     }
 
     console.warn('⚠️ [Bolsai] Sem histórico válido para ' + clean);
@@ -420,10 +509,36 @@ var BolsaiFetcher = (function() {
     return !!(key && key.length > 5);
   }
 
+  /**
+   * 🔧 v14.3: SNAPSHOT das métricas de rede desta execução. Usado para medir o
+   * ganho da Opção C (corte de desperdício) nos logs do orchestrator.
+   * @returns {{requests: number, cacheHits: number, missesEvitados: number}}
+   */
+  function getMetrics() {
+    return {
+      requests: _metrics.requests,
+      cacheHits: _metrics.cacheHits,
+      missesEvitados: _metrics.missesEvitados
+    };
+  }
+
+  /**
+   * 🔧 v14.3: Reset das métricas (chamado no início de cada pipeline, para que o
+   * log reflita apenas a execução corrente).
+   */
+  function resetMetrics() {
+    _metrics.requests = 0;
+    _metrics.cacheHits = 0;
+    _metrics.missesEvitados = 0;
+  }
+
   return {
     getQuote: getQuote,
     getQuoteBatch: getQuoteBatch,
     getHistory: getHistory,
-    isConfigured: isConfigured
+    isConfigured: isConfigured,
+    // 🔧 v14.3 (OPÇÃO C): instrumentação do corte de desperdício
+    getMetrics: getMetrics,
+    resetMetrics: resetMetrics
   };
 })();

@@ -127,6 +127,61 @@ var B3V10_TICKER_MANAGER = (function() {
     ]
   };
 
+  /**
+   * 🔧 v14.4 (OPÇÃO E — ANTI-TIMEOUT): UNIVERSO CURADO DO SCANNER.
+   *
+   * Motivo: o custo real por ticker é 9-18s (cascata GoogleFinance → Bolsai →
+   * BRAPI) contra um orçamento de 210s. Os 70 ativos de CATEGORIES eram
+   * estruturalmente impossíveis de varrer — o que gerava as linhas
+   * "⏱️ TIMEOUT" na Resultados_Analise (caso CASH3, linhas 37-71).
+   *
+   * Estratégia de 2 tiers (~40 ativos), aprovada pelo usuário:
+   *   TIER 1 (30) — alta liquidez/líderes: SEMPRE varridos.
+   *   TIER 2 (10) — complementares de qualidade: varridos se houver tempo.
+   *
+   * CATEGORIES permanece intacto (fonte de verdade para setores, Ranker,
+   * Carteira e Simulação) — apenas o SCANNER usa o universo curado.
+   */
+  var SCANNER_UNIVERSE = {
+    // ── TIER 1 (30): blue chips + alta liquidez — prioridade máxima ──
+    TIER1: [
+      "VALE3", "PETR4", "ITUB4", "BBAS3", "WEGE3",
+      "ABEV3", "BBDC4", "BPAC11", "B3SA3", "SUZB3",
+      "AXIA3", "VIVT3", "SBSP3", "EQTL3", "CSAN3",
+      "GGBR4", "RAIL3", "PRIO3", "CMIG4", "RENT3",
+      "MGLU3", "HYPE3", "RDOR3", "RADL3", "LREN3",
+      "SANB11", "ITSA4", "CPLE3", "TAEE11", "JBSS32"
+    ],
+    // ── TIER 2 (10): complementares de qualidade — se houver tempo ──
+    TIER2: [
+      "TOTS3", "CSNA3", "USIM5", "EGIE3", "FLRY3",
+      "HAPV3", "QUAL3", "MBRF3", "BBSE3", "SMTO3"
+    ],
+    /**
+     * ── TIER 3 (8, v14.5): ATIVOS ESCOLHIDOS POR TESE DE SWING TRADE ──
+     *
+     * Critério de seleção (auditado sobre os 30 ativos que ficaram fora do
+     * universo na v14.4):
+     *   ✓ Liquidez alta/altíssima (entrada/saída sem slippage);
+     *   ✓ Tese de swing trade concreta (tendência, dividendo, turnaround);
+     *   ✓ SEM sobreposição com o que já está nos Tiers 1/2;
+     *   ✗ DESCARTA problemáticos conhecidos: DASA3 / ONCO3 / HAPV3 já tratados
+     *     (séries defasadas que disparam "Nível 2"), BRSR6 / BMGB4 / AALR3 /
+     *     PFRM3 / AURE3 (liquidez baixa), BRAP4 (espelha VALE3, que já está no
+     *     Tier 1 — seria duplicar exposição).
+     */
+    TIER3: [
+      "KLBN11",  // Papel e Celulose — unit de liquidez altíssima, exportadora
+      "ISAE4",   // Elétrico/Transmissão — receita previsível, bom pagador
+      "ENGI11",  // Elétrico — defensivo consolidado, boa liquidez
+      "SAPR11",  // Saneamento — dividendos fortes, defensivo
+      "AZZA3",   // Varejo — ex-ARZZ3, momentum de consumo
+      "VIVA3",   // Varejo — joias, margem alta, tendência de alta
+      "ROXO34",  // BDR Nubank — banco digital, liquidez alta
+      "ALOS3"    // Shoppings — fundo de tijolo com tese de juros
+    ]
+  };
+
   return {
     /** 🚀 NOVO: Verifica se um ticker está na blacklist (inativo/alterado) */
     isDeadTicker: function(ticker) {
@@ -177,6 +232,44 @@ var B3V10_TICKER_MANAGER = (function() {
       return filtrados;
     },
 
+    /**
+     * 🔧 v12.8: Detecta se um ticker é BDR (Brazilian Depositary Receipt) ou
+     * ETF internacional — ativos cujo histórico costuma vir problemático/
+     * desatualizado das fontes (ex.: ACNB34, NVDC34). BDRs têm sufixo 32..39
+     * (ex.: 32=JBS, 33=Nubank, 34=ACNB/Nvidia). ETFs internacionais: prefixos
+     * conhecidos (IVVB, BOVA, XINA, NASD, SPXI, etc.).
+     * @param {string} ticker
+     * @returns {boolean}
+     */
+    isBDR: function(ticker) {
+      if (!ticker) return false;
+      var t = String(ticker).toUpperCase().replace(/\.SA$/, '').trim();
+      // BDR: 4 letras + terminação 32..39 (32=JBS, 33=Nubank, 34=ACNB/Nvidia, ...)
+      if (/^\w{4}(3[2-9])$/.test(t)) return true;
+      // ETFs internacionais comumente problemáticos no histórico
+      if (/^(IVVB|BOVA|SMAL|XINA|NASD|SPXI|HASH|BITH|QDFI|ECOO|GOLD|ISPU|EURP|ACWI|WRLD|BIOM|FIND|DIVO|PIBB)\d*/.test(t)) return true;
+      return false;
+    },
+
+    /**
+     * 🔧 v12.8: Filtra BDRs/ETF internacionais de uma lista, logando os removidos.
+     * @param {Array<string>} tickers
+     * @returns {Array<string>}
+     */
+    filterBDRs: function(tickers) {
+      if (!Array.isArray(tickers)) return [];
+      var self = this;
+      var removidos = [];
+      var filtrados = tickers.filter(function(t) {
+        if (self.isBDR(t)) { removidos.push(t); return false; }
+        return true;
+      });
+      if (removidos.length > 0) {
+        console.log("⏭️ [TickerManager] " + removidos.length + " BDR(s)/ETF(s) internacional(is) removido(s): " + removidos.join(", "));
+      }
+      return filtrados;
+    },
+
     /** Retorna apenas Blue Chips (Tier 1) para Day Trade e Swing Seguro */
     getTier1: function() {
       return CATEGORIES.SAFETY;
@@ -197,6 +290,125 @@ var B3V10_TICKER_MANAGER = (function() {
     getAll: function() {
       const all = Object.values(CATEGORIES).flat();
       return [...new Set(all)];
+    },
+
+    /**
+     * 🔧 v14.4/14.5 (OPÇÃO E): UNIVERSO CURADO DO SCANNER (~48 ativos em 3 tiers).
+     * Substitui getAll() no scanner. Mantém CATEGORIES intacto para setores/
+     * Ranker/Carteira, mas limita o que é efetivamente varrido por execução —
+     * compatível com o orçamento de 210s (custo real 9-18s por ticker).
+     * v14.5: + TIER3 (8 ativos por tese de swing trade) → 48 no total, ainda
+     *        com 4,28s/ticker de fôlego (vs. 2,91s do problema original).
+     * @returns {Array<string>} TIER1 + TIER2 + TIER3, sem duplicatas.
+     */
+    getScannerUniverse: function() {
+      return this._juntarTiers([SCANNER_UNIVERSE.TIER1, SCANNER_UNIVERSE.TIER2, SCANNER_UNIVERSE.TIER3]);
+    },
+
+    /**
+     * 🔧 v14.5: Concatena tiers removendo vazios e duplicatas, preservando a
+     * ordem de prioridade (Tier 1 → Tier 2 → Tier 3).
+     * @param {Array<Array<string>>} tiers
+     * @returns {Array<string>}
+     */
+    _juntarTiers: function(tiers) {
+      var vistos = {};
+      var out = [];
+      for (var k = 0; k < tiers.length; k++) {
+        var arr = tiers[k] || [];
+        for (var i = 0; i < arr.length; i++) {
+          var t = arr[i];
+          if (!t || vistos[t]) continue;
+          vistos[t] = true;
+          out.push(t);
+        }
+      }
+      return out;
+    },
+
+    /**
+     * 🔧 v14.4 (OPÇÃO E): Apenas o TIER 1 (30 ativos de alta liquidez).
+     * Usado quando o orçamento está apertado e só os líderes cabem na varredura.
+     * @returns {Array<string>} Lista do Tier 1 (sem duplicatas).
+     */
+    getScannerTier1: function() {
+      return [...new Set(SCANNER_UNIVERSE.TIER1 || [])];
+    },
+
+    /**
+     * 🔧 v14.5 (OPÇÃO E): Universo reduzido para cenário de orçamento apertado —
+     * somente Tier 1 + Tier 2 (40 ativos). Útil como fallback se o aquecimento
+     * de cache consumir tempo demais ou as APIs estiverem lentas.
+     * @returns {Array<string>} Lista dos Tiers 1 e 2 (sem duplicatas).
+     */
+    getScannerUniverseReduzido: function() {
+      return this._juntarTiers([SCANNER_UNIVERSE.TIER1, SCANNER_UNIVERSE.TIER2]);
+    },
+
+    /**
+     * 🔧 v14.4/14.5 (OPÇÃO E): Exposto para auditoria/teste da composição.
+     * @returns {{TIER1: Array<string>, TIER2: Array<string>, TIER3: Array<string>}}
+     */
+    getScannerUniverseConfig: function() {
+      return {
+        TIER1: (SCANNER_UNIVERSE.TIER1 || []).slice(),
+        TIER2: (SCANNER_UNIVERSE.TIER2 || []).slice(),
+        TIER3: (SCANNER_UNIVERSE.TIER3 || []).slice()
+      };
+    },
+
+    /**
+     * 🔧 v14.2 (ANTI-TIMEOUT): Prioridade de categorias para o scanner.
+     * O scanner tem orçamento FIXO de tempo (210s). Quando o universo (~70 ativos)
+     * não cabe no orçamento, os últimos tickers da fila eram abandonados com
+     * "⏱️ TIMEOUT" (ex.: CASH3 na linha 37 da Resultados_Analise). Ordenar por
+     * prioridade de liquidez garante que os ativos mais negociados sejam SEMPRE
+     * analisados primeiro, e que a perda (se houver) recaia sobre ativos ilíquidos.
+     * Ordem: SAFETY (blue chips) → CYCLICAL → GROWTH → FINANCIAL → HEALTHCARE
+     *        → CONSUMER → TACTICAL (defensivos/dividendos, menos críticos p/ swing).
+     * @type {Array<string>}
+     */
+    CATEGORY_PRIORITY: ['SAFETY', 'CYCLICAL', 'GROWTH', 'FINANCIAL', 'HEALTHCARE', 'CONSUMER', 'TACTICAL'],
+
+    /**
+     * 🔧 v14.2 (ANTI-TIMEOUT): Retorna o universo ordenado por liquidez/prioridade.
+     * Diferente de getAll() (ordem literal do objeto CATEGORIES), esta função
+     * agrupa por categoria seguindo CATEGORY_PRIORITY, de modo que o scanner
+     * consuma primeiro os ativos de maior liquidez. Se o tempo acabar no meio,
+     * os TIMEOUTs serão de ativos menos relevantes — e não de blue chips.
+     * @returns {Array<string>} Lista de tickers priorizada, sem duplicatas.
+     */
+    getOrdered: function() {
+      var ordered = [];
+      var vistos = {};
+      var self = this;
+      var prioridade = self.CATEGORY_PRIORITY || [];
+
+      // 1) Percorre as categorias na ordem de prioridade definida.
+      for (var p = 0; p < prioridade.length; p++) {
+        var cAT = CATEGORIES[prioridade[p]] || [];
+        for (var i = 0; i < cAT.length; i++) {
+          var t = cAT[i];
+          if (!t || vistos[t]) continue;
+          vistos[t] = true;
+          ordered.push(t);
+        }
+      }
+
+      // 2) Rede de segurança: inclui qualquer categoria nova que não esteja em
+      // CATEGORY_PRIORITY (evita perder ativos se uma categoria for adicionada).
+      Object.keys(CATEGORIES).forEach(function(catName) {
+        if (prioridade.indexOf(catName) !== -1) return;
+        var arr = CATEGORIES[catName] || [];
+        for (var j = 0; j < arr.length; j++) {
+          var tk = arr[j];
+          if (!tk || vistos[tk]) continue;
+          vistos[tk] = true;
+          ordered.push(tk);
+        }
+      });
+
+      return ordered;
     },
 
     /** Retorna ativos por categoria específica */
@@ -283,26 +495,45 @@ var B3V10_TICKER_MANAGER = (function() {
     },
 
     /**
-     * Filtra tickers por volume mínimo (R$ 5M) usando dados da Brapi
-     * @param {Array} tickers - Lista opcional de tickers (usa getAll() se vazio)
-     * @returns {Array} Tickers filtrados por liquidez
+     * 🔧 v12.9: Filtra tickers por LIQUIDEZ usando o VOLUME MÉDIO dos candles
+     * (via DataService.getMarketData) — NÃO depende de API de quote inexistente.
+     * Volume médio diário em R$ = média(volume × close) na janela configurada.
+     * @param {Array} tickers - Lista opcional (usa getAll() se vazio)
+     * @returns {Array} Tickers com volume médio >= LIQUIDEZ_VOLUME_MINIMO
      */
     filtrarPorLiquidez: function(tickers) {
       tickers = tickers || this.getAll();
+      if (!Array.isArray(tickers) || tickers.length === 0) return [];
       try {
-        if (typeof BrapiFetcher !== 'undefined' && typeof BrapiFetcher.fetchTickerInfo === 'function') {
-          var info = BrapiFetcher.fetchTickerInfo(tickers);
-          if (info && info.length > 0) {
-            var volumeMinimo = CONFIG ? CONFIG.get('VOLUM_MEDIO_MINIMO', 5000000) : 5000000;
-            var filtrados = info.filter(function(t) {
-              return t && t.volume && t.volume >= volumeMinimo;
-            }).map(function(t) { return t.ticker; });
-            if (filtrados.length > 0) {
-              console.log('📊 Liquidez: ' + filtrados.length + '/' + tickers.length + ' tickers com volume > R$ ' + (volumeMinimo/1e6).toFixed(0) + 'M');
-              return filtrados;
-            }
-          }
+        var cfg = (typeof CONFIG !== 'undefined' && typeof CONFIG.get === 'function') ? CONFIG : null;
+        var volMin = cfg ? Number(cfg.get('LIQUIDEZ_VOLUME_MINIMO', 2000000)) : 2000000;
+        var dias = cfg ? Number(cfg.get('LIQUIDEZ_DIAS_MEDIA', 20)) : 20;
+        if (typeof DataService === 'undefined' || typeof DataService.getMarketData !== 'function') {
+          return tickers; // sem fonte de dados: não filtra
         }
+        var filtrados = [];
+        for (var t = 0; t < tickers.length; t++) {
+          var tk = tickers[t];
+          var data = DataService.getMarketData(tk, '1d', '3mo');
+          var candles = (data && data.candles) ? data.candles : null;
+          if (!candles || candles.length < 5) continue; // sem dados: descarta
+          var inicio = Math.max(0, candles.length - dias);
+          var soma = 0, n = 0;
+          for (var i = inicio; i < candles.length; i++) {
+            var c = candles[i];
+            var v = (c && typeof c.volume === 'number') ? c.volume : 0;
+            var cl = (c && typeof c.close === 'number') ? c.close : 0;
+            if (v > 0 && cl > 0) { soma += v * cl; n++; }
+          }
+          var volMedioRs = n > 0 ? (soma / n) : 0;
+          if (volMedioRs >= volMin) filtrados.push(tk);
+        }
+        if (filtrados.length > 0) {
+          console.log('📊 Liquidez: ' + filtrados.length + '/' + tickers.length +
+            ' tickers com volume médio >= R$ ' + (volMin / 1e6).toFixed(1) + 'M');
+          return filtrados;
+        }
+        console.warn('⚠️ [Liquidez] Nenhum ticker passou no filtro — retornando lista completa (fallback).');
       } catch (e) {
         console.warn('⚠️ Não foi possível filtrar por liquidez: ' + e.message);
       }

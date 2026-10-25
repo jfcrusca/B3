@@ -49,6 +49,23 @@ function _sanitizarMemoria(texto) {
   return textoLimpo.substring(0, 300);
 }
 
+/**
+ * Normaliza o campo "sentiment" para EXATAMENTE BULLISH, BEARISH ou NEUTRAL.
+ * 🔧 v12.8: bloqueia rótulos/apelidos inventados pelo LLM (ex: "BULLISH (Autista)")
+ * que poluíam a coluna "Análise IA". Mapeia sinônimos conhecidos e, na dúvida,
+ * cai em NEUTRAL.
+ * @param {string} raw
+ * @returns {string} BULLISH | BEARISH | NEUTRAL
+ */
+function _sanitizarSentiment(raw) {
+  if (!raw) return 'NEUTRAL';
+  var s = String(raw).toUpperCase().trim();
+  if (s.indexOf('BEARISH') !== -1 || s.indexOf('BAIXA') !== -1 || s.indexOf('NEGATIV') !== -1) return 'BEARISH';
+  if (s.indexOf('BULLISH') !== -1 || s.indexOf('ALTA') !== -1 || s.indexOf('POSITIV') !== -1) return 'BULLISH';
+  if (s.indexOf('NEUTRAL') !== -1 || s.indexOf('NEUTRO') !== -1) return 'NEUTRAL';
+  return 'NEUTRAL';
+}
+
 
 
 var AgentAnalyst = {
@@ -119,8 +136,12 @@ ESCALA DE DECISÃO:
 - ai_score 70-100: COMPRAR
 - ai_score 0-69: AGUARDAR
 
+VOCABULÁRIO OBRIGATÓRIO (CRÍTICO):
+- O campo "sentiment" deve conter EXATAMENTE um dos três valores permitidos: "BULLISH", "BEARISH" ou "NEUTRAL". NUNCA adicione rótulos, apelidos, parênteses ou termos inventados (ex: "BULLISH (Autista)", "modo agressivo", "autista"). Isso é terminantemente proibido.
+- Use apenas vocabulário técnico de mercado financeiro. Não invente jargões, apelidos ou termos pejorativos/informais que não sejam indicadores técnicos reconhecidos (ADX, RSI, Bollinger, OBV, EMA, ATR, Fibonacci, MACD, etc.).
+
 Retorne APENAS um JSON estrito:
-{"decision": "COMPRAR" ou "AGUARDAR", "ai_score": <0-100>, "sentiment": "BULLISH", "BEARISH" ou "NEUTRAL", "rationale": "<justificativa técnica e de risco>"}
+{"decision": "COMPRAR" ou "AGUARDAR", "ai_score": <0-100>, "sentiment": "BULLISH" ou "BEARISH" ou "NEUTRAL", "rationale": "<justificativa técnica e de risco>"}
 `;
 
     // ------------------------------------------------------------------
@@ -179,7 +200,9 @@ try {
     
     return {
       decision: 'AGUARDAR',
-      ai_score: Math.round(ensembleResult.finalScore),
+      // 🔧 B2: `ai_score` = concordância das IAs (puro). null quando a IA não respondeu.
+      ai_score: (typeof ensembleResult.aiScore === 'number') ? ensembleResult.aiScore
+              : (typeof ensembleResult.finalScore === 'number' ? Math.round(ensembleResult.finalScore) : null),
       sentiment: sentimentForcado,
       rationale: ensembleResult.rationale || 'Vetado pelo Ensemble de IA.'
     };
@@ -188,20 +211,30 @@ try {
     // ------------------------------------------------------------------
     // VALIDAÇÃO RÍGIDA DO CONTRATO (Rigid Schema Enforcement)
     // ------------------------------------------------------------------
-    const veredito = {
+    // 🔧 B2: ai_score é a CONCORDÂNCIA DAS IAs (0-100), separada do técnico.
+    // O blend com o técnico é feito unicamente em 09_ScorePolicy.
+    var iaScore = (typeof ensembleResult.aiScore === 'number') ? ensembleResult.aiScore
+                : (typeof ensembleResult.finalScore === 'number' ? Math.round(ensembleResult.finalScore) : null);
+    var veredito = {
       decision: (ensembleResult.decision === "COMPRA_FORTE" || ensembleResult.decision === "COMPRA") ? "COMPRAR" : "AGUARDAR",
-      ai_score: Math.round(ensembleResult.finalScore),
+      ai_score: iaScore,
       sentiment:
-        ensembleResult.finalScore >= 60 ? "BULLISH" :
-        ensembleResult.finalScore <= 40 ? "BEARISH" : "NEUTRAL",
+        (iaScore !== null && iaScore >= 60) ? "BULLISH" :
+        (iaScore !== null && iaScore <= 40) ? "BEARISH" : "NEUTRAL",
       rationale: `Ensemble | G:${ensembleResult.breakdown?.gemini || 0} D:${ensembleResult.breakdown?.deepseek || 0} T:${ensembleResult.breakdown?.tecnico || 0}`
     };
 
-    // Rejeição imediata se campos críticos estiverem corrompidos ou ausentes
-    if (isNaN(veredito.ai_score) || !veredito.decision || !veredito.sentiment) {
+    // Rejeição imediata se campos críticos estiverem corrompidos ou ausentes.
+    // 🔧 B2: ai_score null é ACEITÁVEL (IA indisponível) — não invalida o payload.
+    if (!veredito.decision || !veredito.sentiment) {
       console.error("❌ [AGENT ANALYST] Resposta do Ensemble fora do schema obrigatório. Vetando por segurança.");
-      return { decision: 'AGUARDAR', ai_score: 0, sentiment: 'BEARISH', rationale: 'Falha na integridade do payload de IA.' };
+      return { decision: 'AGUARDAR', ai_score: null, sentiment: 'BEARISH', rationale: 'Falha na integridade do payload de IA.' };
     }
+
+    // 🔧 CORREÇÃO v12.8: SANITIZAÇÃO DO SENTIMENT (defesa em profundidade).
+    // O campo "sentiment" deve ser EXATAMENTE BULLISH/BEARISH/NEUTRAL. Se algum
+    // caminho deixar passar rótulos inventados (ex: "BULLISH (Autista)"), normaliza.
+    veredito.sentiment = _sanitizarSentiment(veredito.sentiment);
 
     return veredito;
 

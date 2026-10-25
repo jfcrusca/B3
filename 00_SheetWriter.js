@@ -1,270 +1,235 @@
 /**
- * 00_SheetWriter.js
  * =============================================================================
- * MÓDULO DE ESCRITA EM PLANILHA — v2.0 (CONSOLIDADO)
+ * 00_SheetWriter.js — ALIAS OFICIAL (v3.0 — CONSOLIDAÇÃO DEFINITIVA)
  * =============================================================================
- * Responsabilidade: Gravar os resultados do scanner na aba "Resultados_Analise"
- * e limpar a aba quando necessário.
+ * 🔧 v3.0 — POR QUE ESTE ARQUIVO MUDOU
+ * -----------------------------------------------------------------------------
+ * HISTÓRICO DO BUG: existiam DUAS implementações independentes de gravação em
+ * 'Resultados_Analise', cada uma com seu próprio código:
  *
- * 🔧 CORREÇÃO v10.2+: Este módulo foi **CONSOLIDADO** ao padrão de 26 colunas
- *    do 08_Output_Unified.js (OutputManager). Antes possuía 23-24 colunas com
- *    nomes OBSOLETOS ('Stop', 'Alvo1', 'Risco', 'Estratégia', 'Observações'),
- *    causando DESLOCAMENTO dos dados quando a planilha já possuía 26 cabeçalhos.
+ *   • 00_SheetWriter.js   → _opParaLinha()  + CFG_T1R/T2R locais
+ *   • 08_Output_Unified.js → _toRow()       + CFG_T1R/T2R locais
+ *
+ * O '08' tentava resolver a colisão com um guard frágil:
+ *     if (typeof SheetWriter === 'undefined') { var SheetWriter = OutputManager; }
+ *
+ * Como o Apps Script avalia todos os arquivos no MESMO escopo global (em ordem
+ * alfabética) e ambos usam `var`, a atribuição era reavaliada/sobrescrita de
+ * forma imprevisível. O Orchestrator fazia `CoreRegistry.get('SheetWriter')` e
+ * NÃO SABIA qual das duas implementações recebia.
+ *
+ * CONSEQUÊNCIA OBSERVADA (caso BPAC11):
+ *   A linha ficou com Fibonacci = 53,98 (col 18) e Topo50 = 61,67 (col 23),
+ *   valores MATEMATICAMENTE INCOMPATÍVEIS entre si — prova de que colunas
+ *   diferentes foram gravadas por implementações diferentes (ou em execuções
+ *   diferentes), corrompendo o registro.
+ *
+ * SOLUÇÃO: este arquivo deixa de ter lógica de escrita. É um ALIAS EXPLÍCITO
+ * para o `OutputManager` do 08_Output_Unified.js, que passa a ser a ÚNICA fonte
+ * de verdade. A ordem de carregamento não importa mais porque não há segunda
+ * implementação para colidir.
+ *
+ * ⚠️ NÃO reintroduza _opParaLinha() aqui. Qualquer ajuste de layout deve ser
+ *    feito em 08_Output_Unified.js (_toRow + OutputConfig.HEADERS).
  *
  * Integração:
- *   - Registrado no CoreRegistry como 'SheetWriter'
+ *   - Registrado no CoreRegistry como 'SheetWriter' (compatibilidade)
  *   - Chamado pelo Orchestrator._processarSaidasFinais()
  * =============================================================================
  */
 
 'use strict';
 
+/**
+ * Alias oficial. Definido como `var` para ser visível globalmente no GAS,
+ * mas SEM lógica própria — apenas aponta para o OutputManager.
+ */
 var SheetWriter = (function () {
+  'use strict';
 
-  var CONFIG = {
-    SHEET_NAME: 'Resultados_Analise',
-    // 🔧 v2.0: HEADERS = 26 colunas, idêntico ao OutputConfig (08_Output_Unified.js)
-    HEADERS: [
-      'Data', 'Ticker', 'Preço', 'Score', 'Setup', 'Motivo', 'Stop Loss',
-      'Alvo 1', 'Alvo 2', 'R/R', 'Risco %', 'RSI', 'EMA21', 'EMA50', 'EMA200',
-      'ATR', 'Volume', 'Pivot', 'Fibonacci', 'Análise IA', 'Ranking',
-      'Tipo Setup', 'Alerta Segurança',
-      // 🔧 v10.2: Novas métricas de "perto do topo"
-      'Topo50', 'GanhoRapido%', 'DistTopo%'
-    ]
-  };
+  /** Nome canônico da aba (mantido para consumidores que consultam). */
+  var SHEET_NAME = 'Resultados_Analise';
 
   /**
-   * Obtém ou cria a aba de destino.
-   * @param {SpreadsheetApp.Spreadsheet} ss
-   * @returns {GoogleAppsScript.Spreadsheet.Sheet}
+   * Resolve o escritor canônico (OutputManager de 08_Output_Unified.js).
+   * @return {Object|null} OutputManager ou null se indisponível.
    */
-  function _getSheet(ss) {
-    var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
-    if (!sheet) {
-      sheet = ss.insertSheet(CONFIG.SHEET_NAME);
-      // Apenas cabeçalhos (26 cols), sem formatação extra
-      sheet.getRange(1, 1, 1, CONFIG.HEADERS.length)
-           .setValues([CONFIG.HEADERS]);
+  function _resolver() {
+    if (typeof OutputManager !== 'undefined' && OutputManager &&
+        typeof OutputManager.saveAnalysisResults === 'function') {
+      return OutputManager;
     }
-    return sheet;
+    console.error('❌ [SheetWriter] OutputManager (08_Output_Unified.js) não disponível. ' +
+      'Verifique se o arquivo 08 está no projeto.');
+    return null;
   }
 
   /**
-   * Converte um objeto de oportunidade em uma linha (array) para a planilha.
-   * 🔧 v2.0: Retorna exatamente 26 posições alinhadas ao cabeçalho do OutputConfig.
-   * @param {Object} op
-   * @returns {Array} Array com 26 posições
-   */
-  function _opParaLinha(op) {
-    if (!op) {
-      var linhaVazia = [];
-      for (var i = 0; i < CONFIG.HEADERS.length; i++) linhaVazia.push('');
-      return linhaVazia;
-    }
-
-    var ind = op.indicators || {};
-
-    // ─── DADOS BASE ───────────────────────────────────────────────────────
-    var ticker = op.ticker || '';
-    var score  = op.score !== undefined ? op.score : 0;
-    var setup  = op.setup || op.setupType || '';
-    var motivo = op.reason || op.motivo || op.paReason || '';
-    var stop   = op.stopLoss || op.stop || 0;
-    var alvo1  = op.target1 || 0;
-    var alvo2  = op.target2 || 0;
-    var rr     = (op.rr !== undefined && op.rr !== null) ? op.rr
-              : ((op.riskReward !== undefined && op.riskReward !== null) ? op.riskReward : 0);
-
-    // ─── PREÇO (com overrides e cotação ao vivo) ──────────────────────────
-    var precoOriginal = (op.price !== undefined && op.price !== null) ? op.price : op.Preço || 0;
-    var preco = precoOriginal;
-
-    if (ticker && typeof DataService !== 'undefined' && typeof DataService.getPrecoOverride === 'function') {
-      try {
-        var overridePreco = DataService.getPrecoOverride(ticker);
-        if (overridePreco && overridePreco > 0) preco = overridePreco;
-      } catch (e) { /* fallback */ }
-    }
-    if (op.livePrice && op.livePrice > 0) preco = op.livePrice;
-    if (!preco || preco <= 0) preco = precoOriginal || 0;
-
-    // ─── INDICADORES ──────────────────────────────────────────────────────
-    var rsi    = ind.rsi    || op.rsi    || 50;
-    var ema21  = ind.ema21  || op.ema21  || 0;
-    var ema50  = ind.ema50  || op.ema50  || 0;
-    var ema200 = ind.ema200 || op.ema200 || 0;
-    var atr    = ind.atr    || op.atr    || 0;
-    // 🔧 v12.1: ATR mínimo estimado se vazio
-    if (atr <= 0 && preco > 0) atr = parseFloat((preco * 0.015).toFixed(4));
-
-    var volume = op.volume || ind.volume || 0;
-    var pivot  = op.pivot  || ind.pivot  || 0;
-    var fib    = op.fiboPrice || op.fibo || op.fibonacci || ind.fibonacci || 0;
-    var aiText = op.aiRationale || op.aiCommentary || op.analiseIA || '';
-
-    // ─── RISCO PERCENTUAL ─────────────────────────────────────────────────
-    var riscoPct = 0;
-    if (op.riscoPercent && op.riscoPercent > 0) riscoPct = op.riscoPercent;
-    if (riscoPct === 0 && preco > 0 && stop > 0) {
-      if (stop < preco)      riscoPct = parseFloat(((preco - stop) / preco * 100).toFixed(2));
-      else if (stop > preco) riscoPct = parseFloat(((stop  - preco) / preco * 100).toFixed(2));
-    }
-
-    // ─── RANKING ──────────────────────────────────────────────────────────
-    var ranking = 0;
-    if (ema21 > 0.1 && preco > 0 && rsi > 0) {
-      ranking = 80 + (60 - rsi) - (((preco / ema21) - 1) * 100) + ((rr - 1.5) * 10);
-      ranking = parseFloat(ranking.toFixed(1));
-      ranking = Math.min(200, Math.max(0, ranking));
-    }
-
-    // ─── TIPO DE SETUP ────────────────────────────────────────────────────
-    var distMedia = ema21 > 0 ? (preco / ema21) - 1 : 0;
-    var tipoSetup = 'TENDÊNCIA';
-    if (distMedia <= 0.02 && distMedia >= -0.02) {
-      tipoSetup = 'PULLBACK';
-    } else if (distMedia > 0.05 && rsi > 60) {
-      tipoSetup = 'MOMENTUM';
-    } else if (fib > 0 && preco > fib && distMedia < 0.04) {
-      tipoSetup = 'ROMPIMENTO';
-    } else if (distMedia < -0.05 && rsi < 40) {
-      tipoSetup = 'REVERSÃO';
-    }
-    // Fallback: extrai do nome do setup
-    if ((tipoSetup === 'TENDÊNCIA' || !tipoSetup) && setup && typeof setup === 'string') {
-      if (setup.indexOf('PULLBACK') !== -1) tipoSetup = 'PULLBACK';
-      else if (setup.indexOf('MOMENTUM') !== -1) tipoSetup = 'MOMENTUM';
-      else if (setup.indexOf('ROMPIMENTO') !== -1) tipoSetup = 'ROMPIMENTO';
-      else if (setup.indexOf('REVERSÃO') !== -1) tipoSetup = 'REVERSÃO';
-    }
-
-    // ─── ALERTA DE SEGURANÇA ──────────────────────────────────────────────
-    var alertaMsg = op.alertaLive || op.alerta || '-';
-    if (!alertaMsg || typeof alertaMsg !== 'string') alertaMsg = '-';
-
-    // ─── MÉTRICAS DE "PERTO DO TOPO" (v10.2) ──────────────────────────────
-    var topo50         = op.topo50 || 0;
-    var ganhoRapidoPct = (op.ganhoRapidoPct !== undefined && op.ganhoRapidoPct !== null) ? op.ganhoRapidoPct : 0;
-    var distTopoPct    = (op.distTopoPct !== undefined && op.distTopoPct !== null) ? op.distTopoPct : 0;
-
-    // ─── DATA ─────────────────────────────────────────────────────────────
-    var dataAtual = op.data || new Date();
-    if (!(dataAtual instanceof Date)) dataAtual = new Date(dataAtual);
-
-    // ─── RETORNA 26 COLUNAS (alinhado ao OutputConfig v10.2) ──────────────
-    return [
-      dataAtual,          // 0: Data
-      ticker,             // 1: Ticker
-      preco,              // 2: Preço
-      score,              // 3: Score
-      setup,              // 4: Setup
-      motivo,             // 5: Motivo
-      stop,               // 6: Stop Loss
-      alvo1,              // 7: Alvo 1
-      alvo2,              // 8: Alvo 2
-      rr,                 // 9: R/R
-      riscoPct,           // 10: Risco %
-      rsi,                // 11: RSI
-      ema21,              // 12: EMA21
-      ema50,              // 13: EMA50
-      ema200,             // 14: EMA200
-      atr,                // 15: ATR
-      volume,             // 16: Volume
-      pivot,              // 17: Pivot
-      fib,                // 18: Fibonacci
-      aiText,             // 19: Análise IA
-      ranking,            // 20: Ranking
-      tipoSetup,          // 21: Tipo Setup
-      alertaMsg,          // 22: Alerta Segurança
-      topo50,             // 23: Topo50
-      ganhoRapidoPct,     // 24: GanhoRapido%
-      distTopoPct         // 25: DistTopo%
-    ];
-  }
-
-
-  // ---------------------------------------------------------------------------
-  // API PÚBLICA
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Salva a lista completa de resultados na aba "Resultados_Analise".
-   * Modo SNAPSHOT: apaga tudo e reescreve.
-   * @param {Array} listaCompleta
+   * Salva a lista completa em 'Resultados_Analise' (delega ao OutputManager).
+   * @param {Array} listaCompleta lista de oportunidades/resultados.
+   * @return {boolean} true se gravou.
    */
   function saveAnalysisResults(listaCompleta) {
-    if (!listaCompleta || !Array.isArray(listaCompleta)) {
-      console.warn('⚠️ [SheetWriter] Lista inválida para saveAnalysisResults');
-      return;
+    var writer = _resolver();
+    if (!writer) return false;
+
+    // Validação defensiva: o OutputManager espera um array não vazio.
+    if (!listaCompleta || !Array.isArray(listaCompleta) || listaCompleta.length === 0) {
+      console.log('ℹ️ [SheetWriter] Lista vazia — nada a gravar.');
+      return false;
     }
 
-    console.log('📝 [SheetWriter] Salvando ' + listaCompleta.length + ' resultados em "' + CONFIG.SHEET_NAME + '" (26 cols)...');
-
     try {
-      var ss = SpreadsheetApp.getActiveSpreadsheet();
-      var sheet = _getSheet(ss);
-
-      var ultimaLinha = sheet.getLastRow();
-      // 🔧 v2.0: limpeza em 26 colunas + remove cores residuais
-      if (ultimaLinha > 1) {
-        sheet.getRange(2, 1, ultimaLinha - 1, CONFIG.HEADERS.length).clearContent().setBackground(null);
-      }
-
-      if (listaCompleta.length === 0) {
-        console.log('ℹ️ [SheetWriter] Lista vazia — aba limpa.');
-        return;
-      }
-
-      var linhas = listaCompleta.map(_opParaLinha);
-      // 🔧 v2.0: Validação de segurança — garante exatamente 26 valores por linha
-      for (var li = 0; li < linhas.length; li++) {
-        var rowV = linhas[li];
-        if (!rowV) { rowV = []; for (var kk = 0; kk < CONFIG.HEADERS.length; kk++) rowV.push(''); }
-        while (rowV.length < CONFIG.HEADERS.length) rowV.push('');
-        linhas[li] = rowV.slice(0, CONFIG.HEADERS.length);
-      }
-
-      // Grava dados em bloco (26 colunas)
-      sheet.getRange(2, 1, linhas.length, CONFIG.HEADERS.length).setValues(linhas);
-
-      // Formatação numérica mínima p/ leitura clara
-      try {
-        var nr = linhas.length;
-        sheet.getRange(2, 3, nr, 1).setNumberFormat('"R$ "#,##0.00');
-        sheet.getRange(2, 7, nr, 3).setNumberFormat('"R$ "#,##0.00');
-        sheet.getRange(2, 10, nr, 1).setNumberFormat('0.00');
-        sheet.getRange(2, 11, nr, 1).setNumberFormat('0.00"%"');
-      } catch (fmtErr) {
-        console.warn('⚠️ [SheetWriter] Formatação numérica opcional: ' + fmtErr.message);
-      }
-
-      console.log('✅ [SheetWriter] ' + listaCompleta.length + ' linhas escritas em "' + CONFIG.SHEET_NAME + '".');
-
+      writer.saveAnalysisResults(listaCompleta);
+      return true;
     } catch (e) {
-      console.error('❌ [SheetWriter] Erro ao salvar resultados: ' + e.message);
+      // 🔧 v3.0: erro PROPAGADO (não engolido) — o Orchestrator precisa saber.
+      console.error('❌ [SheetWriter] Falha ao gravar: ' + e.message);
+      throw e;
     }
   }
 
-  /**
-   * Limpa a aba "Resultados_Analise" (preserva cabeçalho).
-   */
+  /** Limpa a aba 'Resultados_Analise' (delega ao OutputManager). */
   function clearSheet() {
+    var writer = _resolver();
+    if (!writer || typeof writer.clearSheet !== 'function') return false;
     try {
-      var ss = SpreadsheetApp.getActiveSpreadsheet();
-      var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
-      if (sheet && sheet.getLastRow() > 1) {
-        sheet.getRange(2, 1, sheet.getLastRow() - 1, CONFIG.HEADERS.length).clearContent().setBackground(null);
-        console.log('🧹 [SheetWriter] Aba "' + CONFIG.SHEET_NAME + '" limpa.');
-      }
+      writer.clearSheet();
+      return true;
     } catch (e) {
-      console.warn('⚠️ [SheetWriter] Erro ao limpar aba: ' + e.message);
+      console.error('❌ [SheetWriter] Falha ao limpar: ' + e.message);
+      throw e;
     }
   }
 
   return {
+    SHEET_NAME: SHEET_NAME,
     saveAnalysisResults: saveAnalysisResults,
     clearSheet: clearSheet
   };
-
 })();
+
+// =============================================================================
+// VALIDAR_INTEGRIDADE_RESULTADOS — DIAGNÓSTICO DE LINHAS CORROMPIDAS
+// =============================================================================
+// Detecta a assinatura de LINHAS MISTURADAS (dados de execuções diferentes),
+// o padrão que produziu a linha impossível do BPAC11:
+//   Stop R$ 57,15  +  Risco 6,93%   (57,15 daria 10,00%)
+//   Alvo1 R$ 61,67 +  Alvo2 R$ 63,93  (fontes distintas)
+//   ATR 2 (arredondado) e Alerta Segurança VAZIO (o _toRow nunca escreve vazio)
+//
+// Uso: rode VALIDAR_INTEGRIDADE_RESULTADOS() pelo menu/editor.
+// =============================================================================
+function VALIDAR_INTEGRIDADE_RESULTADOS() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Resultados_Analise');
+  if (!sheet) {
+    console.error("❌ Aba 'Resultados_Analise' não encontrada.");
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    console.log("ℹ️ 'Resultados_Analise' vazia — nada a validar.");
+    b3UiAlertIntegridade_('✅ Integridade OK', 'A aba está vazia. Rode o scanner para popular.');
+    return;
+  }
+
+  const data = sheet.getRange(2, 1, lastRow - 1, 27).getValues();
+  const problemas = [];
+
+  // Índices (0-based) conforme OutputConfig.HEADERS
+  const IDX = {
+    DATA: 0, TICKER: 1, PRECO: 2, SCORE: 3, SETUP: 4,
+    STOP: 6, ALVO1: 7, ALVO2: 8, RR: 9, RISCO: 10,
+    ATR: 15, ALERTA: 22, TOPO50: 23
+  };
+
+  data.forEach(function (r, i) {
+    const linha = i + 2;
+    const ticker = String(r[IDX.TICKER] || '').trim();
+    if (!ticker) return;
+
+    const preco = Number(r[IDX.PRECO]) || 0;
+    const stop = Number(r[IDX.STOP]) || 0;
+    const alvo1 = Number(r[IDX.ALVO1]) || 0;
+    const alvo2 = Number(r[IDX.ALVO2]) || 0;
+    const rr = Number(r[IDX.RR]) || 0;
+    const riscoNum = Number(String(r[IDX.RISCO] || '').replace('%', '').replace(',', '.')) || 0;
+    const alerta = String(r[IDX.ALERTA] || '');
+    const atr = Number(r[IDX.ATR]) || 0;
+
+    const erros = [];
+
+    // ── 1. Alvo ABAIXO do preço em setup de COMPRA (impossível) ────────────
+    if (preco > 0 && alvo1 > 0 && alvo1 < preco) {
+      erros.push('Alvo1 (R$ ' + alvo1.toFixed(2) + ') ABAIXO do preço (R$ ' + preco.toFixed(2) + ')');
+    }
+    if (preco > 0 && alvo2 > 0 && alvo2 < preco) {
+      erros.push('Alvo2 (R$ ' + alvo2.toFixed(2) + ') ABAIXO do preço');
+    }
+
+    // ── 2. Stop ACIMA do preço (impossível para compra) ────────────────────
+    if (preco > 0 && stop > 0 && stop >= preco) {
+      erros.push('Stop (R$ ' + stop.toFixed(2) + ') >= preço (R$ ' + preco.toFixed(2) + ')');
+    }
+
+    // ── 3. Risco % incoerente com o Stop ───────────────────────────────────
+    if (preco > 0 && stop > 0 && stop < preco && riscoNum > 0) {
+      const riscoCalc = ((preco - stop) / preco) * 100;
+      if (Math.abs(riscoCalc - riscoNum) > 0.15) {
+        erros.push('Risco ' + riscoNum.toFixed(2) + '% != ' + riscoCalc.toFixed(2) +
+          '% (stop R$ ' + stop.toFixed(2) + ')');
+      }
+    }
+
+    // ── 4. R/R incoerente com Alvo1 e Stop ─────────────────────────────────
+    if (preco > 0 && stop > 0 && stop < preco && alvo1 > preco && rr > 0) {
+      const rrCalc = (alvo1 - preco) / (preco - stop);
+      if (Math.abs(rrCalc - rr) > 0.05) {
+        erros.push('R/R ' + rr.toFixed(2) + ' != ' + rrCalc.toFixed(2) +
+          ' (alvo1 R$ ' + alvo1.toFixed(2) + ' / risco R$ ' + (preco - stop).toFixed(2) + ')');
+      }
+    }
+
+    // ── 5. Alerta Segurança vazio (o _toRow escreve '-' sempre) ────────────
+    if (alerta === '') {
+      erros.push('Alerta Segurança VAZIO (deveria ser "-" ou o alerta)');
+    }
+
+    // ── 6. Stop absurdamente distante em ATR (sinal de fonte misturada) ────
+    if (atr > 0 && stop > 0 && stop < preco) {
+      const atrs = (preco - stop) / atr;
+      if (atrs > 4) {
+        erros.push('Stop a ' + atrs.toFixed(1) + ' x ATR (max. recomendado 2,5)');
+      }
+    }
+
+    if (erros.length > 0) {
+      problemas.push('Linha ' + linha + ' [' + ticker + ']: ' + erros.join(' | '));
+    }
+  });
+
+  if (problemas.length === 0) {
+    console.log('✅ [Integridade] ' + data.length + ' linhas verificadas — nenhuma inconsistência.');
+    b3UiAlertIntegridade_('✅ Integridade OK',
+      data.length + ' linha(s) verificada(s).\n\nNenhuma inconsistência encontrada.');
+    return;
+  }
+
+  const msg = problemas.length + ' linha(s) com PROBLEMA:\n\n' + problemas.join('\n');
+  console.error('🔴 [Integridade] ' + msg);
+  b3UiAlertIntegridade_('🔴 LINHAS CORROMPIDAS DETECTADAS', msg.slice(0, 2500));
+}
+
+/** Wrapper de UI resiliente (funciona em menu e em gatilho). */
+function b3UiAlertIntegridade_(titulo, mensagem) {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    if (ui && typeof ui.alert === 'function') {
+      ui.alert(titulo, mensagem, ui.ButtonSet.OK);
+      return;
+    }
+  } catch (e) { /* contexto sem UI */ }
+  console.log('[' + titulo + '] ' + mensagem);
+}

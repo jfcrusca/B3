@@ -70,24 +70,64 @@ var AgentRiskManager = (function() {
         sizeFactor = 0.5; // Reduz mão para 50% do lote padrão
       }
 
-      // 4. GESTÃO DE STOP SNIPER (ATR + FIBO)
+      // =======================================================================
+      // 🔧 v6.0 [CORREÇÃO]: O SENTINELA NÃO SOBRESCREVE MAIS A GEOMETRIA
+      // -----------------------------------------------------------------------
+      // BUG ANTERIOR (linhas 73-91 da v5.0): este módulo RECALCULAVA o stop:
+      //
+      //     let stopFinal = preco - (atr * 2.0);
+      //     if (fibo618 > 0 && fibo618 < preco) {
+      //       stopFinal = Math.min(stopFinal, fibo618 * 0.99);  // pega o MAIS DISTANTE
+      //     }
+      //     return { stop: stopFinal, target: op.target1, rr_ratio: op.rr };
+      //
+      // O stop era INVENTADO aqui, mas `target` e `rr_ratio` vinham intactos do
+      // 22_Core_Analyzers — ou seja, TRÊS grandezas medindo DUAS geometrias
+      // diferentes. Resultado observado em 46 de 46 linhas de 'Resultados_Analise':
+      //
+      //   ITUB4  : stop 41,20 -> risco 4,36%  mas Risco% gravado 2,67%  (dif 1,69)
+      //   BBDC4  : stop 17,57 -> risco 3,25%  mas Risco% gravado 2,32%  (dif 0,93)
+      //   BPAC11 : stop 57,15 -> risco 10,00% mas Risco% gravado 6,93%  (dif 3,07)
+      //
+      // Em VALE3 e PETR4 a diferença era 0,00 — justamente onde o stop calculado
+      // aqui coincidiu com o do Core22. Isso PROVA que a divergência vem daqui.
+      //
+      // Também era um erro conceitual: `Math.min` escolhe o stop MAIS DISTANTE,
+      // ou seja, o MAIOR risco — o oposto de um "stop sniper" (proteção apertada).
+      //
+      // AGORA: a geometria (stop / alvo / R-R / risco%) é responsabilidade EXCLUSIVA
+      // do 22_Core_Analyzers (que já aplica teto de 2,5×ATR na v22.15) +
+      // 28_Position_Geometry (que garante a coerência entre as métricas).
+      // Este módulo atua APENAS no que é sua competência:
+      //   • exaustão da carteira, correlação setorial e tamanho da mão.
+      // =======================================================================
       const preco = op.price;
-      const atr = op.indicators?.atr || (preco * 0.03);
-      const fibo618 = op.fiboPrice || 0;
+      const stopRecebido = op.stopLoss || op.stop || 0;
+      // ATR apenas para o metadado de auditoria `_atrRef` (não recalcula nada).
+      const atr = (op.indicators && op.indicators.atr) || (preco > 0 ? preco * 0.03 : 0);
 
-      // Stop técnico protegido: 2x ATR ou Fibo 61.8%
-      let stopFinal = preco - (atr * 2.0);
-      if (fibo618 > 0 && fibo618 < preco) {
-        stopFinal = Math.min(stopFinal, fibo618 * 0.99); // Esconde 1% abaixo do Fibo
+      // Diagnóstico: avisa se o stop recebido for geometricamente inválido para
+      // compra (stop >= preço). NÃO corrige — apenas sinaliza em veto_reason para
+      // que o problema fique visível em vez de ser mascarado.
+      let avisoGeometria = '';
+      if (preco > 0 && stopRecebido > 0 && stopRecebido >= preco) {
+        avisoGeometria = 'Geometria inválida recebida (stop >= preço) — revisar Core22.';
+        console.warn('⚠️ [RiskManager] ' + ticker + ': ' + avisoGeometria);
       }
 
       return {
         approved: true,
         suggested_allocation: sizeFactor,
-        stop: parseFloat(stopFinal.toFixed(2)),
-        target: op.target1,
-        rr_ratio: op.rr,
-        veto_reason: ""
+        // ── Geometria PRESERVADA (fonte: 22_Core_Analyzers + 28_Position_Geometry)
+        stop: stopRecebido,
+        target: op.target1 || 0,
+        target2: op.target2 || 0,
+        rr_ratio: op.rr || 0,
+        // ── Metadados de auditoria (não alteram o cálculo a jusante)
+        _geometriaPreservada: true,
+        _fonteGeometria: '22_Core_Analyzers',
+        _atrRef: atr,
+        veto_reason: avisoGeometria
       };
     },
 

@@ -15,7 +15,11 @@ var CONFIG = (function() {
   
   // VALORES PADRÃO (Ajustados para Julho 2026 — v11)
   const DEFAULTS = {
-    GEMINI_MODEL: 'gemini-2.0-flash-lite', 
+    // 🔧 v12 (migração Gemini 3.x): modelo alinhado à série 3.x. A API 3.x
+    // usa thinking_level e REJEITA temperature/top_p/top_k (depreciados).
+    GEMINI_MODEL: 'gemini-3.1-flash-lite',
+    // Nível de raciocínio do Gemini 3.x: 'minimal' | 'low' | 'medium' | 'high'
+    GEMINI_THINKING_LEVEL: 'low',
     MAX_EXECUTION_TIME: 280,
     VOLUM_MEDIO_MINIMO: 5000000,
     IA_SCORE_MINIMO: 55,
@@ -39,6 +43,13 @@ var CONFIG = (function() {
     DECISION_AI_WEIGHT: 0.3,
     DECISION_FLEX_TECH_WEIGHT: 0.8,
     DECISION_FLEX_AI_WEIGHT: 0.2,
+    // 🔧 B2: POLÍTICA ÚNICA DE SCORE (09_ScorePolicy). O técnico é o motor; a IA é
+    // modificador LIMITADO. Estes parâmetros definem o ajuste da IA:
+    //   ajusteIA = clamp( (scoreIA - NEUTRO) * WEIGHT_SWING , -CAP, +CAP )
+    SCORE_POLICY_IA_NEUTRO: 50,        // ponto de equilíbrio da IA
+    SCORE_POLICY_IA_WEIGHT_SWING: 0.30, // 30% do desvio → ±15 pts no extremo
+    SCORE_POLICY_IA_CAP: 15,           // cap absoluto do ajuste da IA (pontos)
+
     SENTIMENT_BONUS_EXCELLENT: 15,
     SENTIMENT_BONUS_BULLISH: 10,
     SENTIMENT_BONUS_POSITIVE: 5,
@@ -70,7 +81,37 @@ var CONFIG = (function() {
     PERDA_MAXIMA_DIARIA: -2000,
     IGNORAR_FERIADOS: false,
     RANKER_RESUMO_SHEET: 'Resumo_Trades_Aprovados',
-    RANKER_RISK_LEVEL: 0.02
+    RANKER_RISK_LEVEL: 0.02,
+    // 🔧 v12.9: FILTROS DE PRÉ-TRIAGEM (aplicados no scanner, antes do score)
+    // LIQUIDEZ: volume MÉDIO diário (R$) mínimo — usa os candles já baixados.
+    //   0 = desligado. Padrão R$ 2M (conservador; a lista curada já é líquida).
+    LIQUIDEZ_ATIVA: true,
+    LIQUIDEZ_VOLUME_MINIMO: 2000000,
+    LIQUIDEZ_DIAS_MEDIA: 20,        // janela de dias para a média de volume
+    // VOLATILIDADE: corte por ATR% (ATR / preço). Evita "penny volátil" (>max)
+    //   e ativos parados (<min). 0 = desligado.
+    VOLATILIDADE_ATIVA: true,
+    ATR_MAX_PCT: 0.10,              // 10% de ATR diário = teto de volatilidade
+    ATR_MIN_PCT: 0.005,             // 0,5% = piso (ativo muito parado)
+    // 🔧 v12.8: Position Sizing — limites de alocação
+    // Teto por trade (25% do capital) e teto AGREGADO da carteira teórica (95%).
+    RANKER_MAX_TRADE_ALLOCATION: 0.25,
+    RANKER_MAX_TOTAL_ALLOCATION: 0.95,
+    // 🔧 v12.8/v13.4: Convivência da coluna "Cotação Atual" (H) da aba Carteira.
+    // 'auto'   = se detectar fórmula na coluna, o robô NÃO a sobrescreve.
+    // 'formula'= o robô nunca escreve a coluna (100% fórmula do usuário).
+    //            OPÇÃO B: coluna H puxa de Cotacoes_Live via VLOOKUP
+    //            (instale pelo menu 💰 COFRE > "Atualizar Cotações da Carteira").
+    // 'api'    = o robô sempre sobrescreve com a cotação das APIs.
+    CARTEIRA_COTACAO_MODO: 'auto',
+    // 🔍 DIAGNÓSTICO: limiar de score abaixo do qual o breakdown é logado.
+    // Formato do log (v22.13):
+    //   🔍SCORE_BREAKDOWN|TICKER|base=..>tend=..>rsiVol=..>fiboRR=..>macro=..>penal=..
+    //     |teto=SIM(Δ)|nao|adx=..|volRel=..|rsi=..|regime=..|raw=..|FINAL=..
+    //   raw = soma das parcelas ANTES do teto de RADAR e do clamp (distingue
+    //         FINAL=0 por -1 de FINAL=0 por -300).
+    // Aumente para 100 para logar TODOS os ativos; 0 para desligar na prática.
+    DIAG_SCORE_BREAKDOWN_LIMIAR: 40,
   };
 
   function parseValue(value) {
