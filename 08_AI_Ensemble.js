@@ -900,21 +900,36 @@ var AIEnsemble = (function() {
     // ==============================
 // ⚖️ PENALIZAÇÃO POR DIVERGÊNCIA
 // ==============================
+    // 🔧 v10.4 (correção): a penalização ANTES caía em `finalScore`, mas o bloco
+    // B2 (acima) reescreveu a fonte da verdade para `iaConsenso` — e é `aiScore`
+    // (= iaConsenso arredondado) que viaja para 36_Agent_Analyst até o
+    // DecisionEngine. Resultado: `finalScore *= 0.85` era trabalho PERDIDO; o
+    // score publicado refletia o consenso BRUTO, sem punição por divergência.
+    // Ex. real (log 25/10): Gemini 82 / DeepSeek 35 → diff 47 → penalidade 0.85
+    // descartada → ai_score=73 chegou intacto ao Sentinela, que aprovou com 100.
+    // Agora a penalidade é aplicada no PRÓPRIO consenso, único ponto que propaga.
     if (gS !== null && dS !== null) {
   var diff = Math.abs(gS - dS);
 
       if (diff > 35) {
         console.warn("🚨 Divergência forte entre IAs: " + diff.toFixed(1));
-        finalScore *= 0.85; // penalização forte por falta de consenso
+        iaConsenso *= 0.85; // penalização forte por falta de consenso
       } else if (diff > 20) {
         console.warn("⚠️ Divergência moderada entre IAs: " + diff.toFixed(1));
         // ✅ CORREÇÃO: Penalidade menos severa se em regime BEARISH e score técnico alto
         if (macroRegimeEfetivo === "BEARISH" && techScore >= 70) {
-            finalScore *= 0.95; // Penalidade reduzida
+            iaConsenso *= 0.95; // Penalidade reduzida
         } else {
-            finalScore *= 0.90; // Penalidade padrão
+            iaConsenso *= 0.90; // Penalidade padrão
         }
   }
+  // Reflete o consenso penalizado no score final (mesma fonte usada no return).
+  // 🔧 v10.4: `scoreIA` (o `aiScore` do retorno, consumido por 36_ → 34_ → ScorePolicy)
+  // foi calculado na linha acima ANTES desta penalização. Recalcula para que a
+  // punição por divergência chegue, de fato, ao score publicado.
+  finalScore = iaConsenso;
+  scoreIA = Math.max(0, Math.min(100, Math.round(iaConsenso)));
+  console.log("🔧 [AIEnsemble] Consenso penalizado por divergência: " + Math.round(finalScore) + " (aiScore=" + scoreIA + ")");
 }
 
 

@@ -221,7 +221,7 @@ function STRATEGY_EVALUATE_CORE(data, ibovContext) {
   // =========================================================================
   // 8. CÁLCULO DO SCORE SISTÊMICO
   // =========================================================================
-  var scoreFinal = _calcularScoreSistêmico(last.close, ind, estrutura, risco, pa.bonus, ibovContext);
+  var scoreFinal = _calcularScoreSistêmico(last.close, ind, estrutura, risco, pa.bonus, ibovContext, ticker);
   
   // =========================================================================
   // 9. IDENTIFICAÇÃO DO SETUP
@@ -656,7 +656,7 @@ function _processarGestaoRisco(preco, atr, estrutura, candles, closes) {
   };
 }
 
-function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
+function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov, tickerRef) {
   var s = 30;
 
   // 🔍 DIAGNÓSTICO (Opção 2): acumulador de breakdown do score.
@@ -958,7 +958,11 @@ function _calcularScoreSistêmico(preco, ind, est, rsc, bonusPA, ibov) {
     var limiar = (typeof CONFIG !== 'undefined' && typeof CONFIG.get === 'function')
       ? Number(CONFIG.get('DIAG_SCORE_BREAKDOWN_LIMIAR', 40)) : 40;
     if (_scoreFinal <= limiar) {
-      var _tk = (typeof ticker !== 'undefined' && ticker) ? ticker : '?';
+      // 🔧 v10.2: o ticker chega por parâmetro (tickerRef). Antes lia a variável
+      // `ticker` do escopo externo, que NÃO existe dentro desta função — o log
+      // saía sempre como "🔍SCORE_BREAKDOWN|?" e não permitia correlacionar o
+      // score baixo com o ativo. Fallback mantido para chamadas antigas.
+      var _tk = tickerRef || (typeof ticker !== 'undefined' ? ticker : '') || '?';
       var _somaParcelas = _bd.base +
         (_bd.aposTendencia - _bd.base) +
         ((_bd.aposVolume || _bd.aposTendencia) - _bd.aposTendencia) +
