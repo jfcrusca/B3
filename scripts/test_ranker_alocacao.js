@@ -2,21 +2,24 @@
  * @file scripts/test_ranker_alocacao.js
  * @description Regressão do Bug 4 — alocação da carteira teórica em 41_Ranker.js.
  *
- * Cenário real (log de produção 25/10): 13 trades aprovados, capital R$ 20.000,
- * teto agregado 95%. O algoritmo ANTIGO ("guloso cego") produzia:
- *   • 8 trades DESCARTADOS (TAEE11, VIVA3, BBAS3, SAPR11, HYPE3, CMIG4, ISAE4,
- *     RADL3) — inclusive com score 95-100 — enquanto os piores sobravam;
- *   • ITSA4 com qtd=1 (R$ 35) — "posição-token" inviável;
- *   • riscoRs do trade trimado NÃO recalculado (risco agregado mentindo).
+ * IMPORTANTE (v15.1): este teste executa o BLOCO 5.1 REAL de 41_Ranker.js
+ * (via scripts/_harness_ranker.js), não uma cópia da lógica. A versão anterior
+ * replicava a alocação como função pura de (score, preço) e por isso NÃO
+ * enxergava o `qtd` que o Position Sizing entrega ao Ranker — foi assim que
+ * a v15.0 passou nos testes e quebrou em produção (alocações de 24% em papel
+ * de stop largo e quantidades AUMENTADAS acima do sizing).
  *
- * A correção v15.0 distribui o capital proporcionalmente ao score (peso =
- * score − 50), com teto por trade e piso de utilidade MISTO:
- *   piso = min(RANKER_MIN_LOTE_VALUE, RANKER_MIN_LOTE_PCT × alocação-alvo)
+ * Histórico dos bugs cobertos:
+ *   v12.8 "guloso cego": consumia o capital na ordem do score e descartava o
+ *     resto — 8 de 13 trades caíam, inclusive com score 95-100.
+ *   v15.0: score puro ignorando o `qtd` — estourava o risco por trade.
+ *   v15.1: cota respeita o `qtd` do sizing como TETO de risco; score só
+ *     distribui o capital quando ele não cabe.
  *
  * Verificações:
  *   (1) Contrato estático em 41_Ranker.js / 01_Core_Config.js;
- *   (2) Simulação numérica do cenário real (teto, posição-token, riscoRs);
- *   (3) Casos de borda (capital minúsculo, 1 trade, ativo caro).
+ *   (2) Caso real do log (13 aprovados, R$ 20.000) com o código de produção;
+ *   (3) Casos de borda (capital apertado, 1 trade, ativo caro, 40 ativos).
  */
 
 var fs = require('fs');
@@ -30,6 +33,8 @@ function ok(cond, msg) {
   checks++;
   if (!cond) falhas.push(msg);
 }
+
+var harness = require('./_harness_ranker.js');
 
 // ---------------------------------------------------------------------------
 // (1) CONTRATO ESTÁTICO
@@ -55,303 +60,293 @@ ok(/_pesoScore/.test(rankerCode),
   'Peso por score (_pesoScore) ausente — distribuicao proporcional nao implementada.');
 ok(/maxTradeValue/.test(rankerCode) && /maxTotalValue/.test(rankerCode),
   'Teto agregado e/ou teto por trade nao usados na alocacao.');
-ok(/MIN_LOTE_VALUE/.test(rankerCode) && /MIN_LOTE_PCT/.test(rankerCode),
-  'Piso de utilidade (MIN_LOTE_VALUE / MIN_LOTE_PCT) nao aplicado no Ranker.');
+ok(/MIN_LOTE_VALUE/.test(rankerCode),
+  'Piso de utilidade (MIN_LOTE_VALUE) nao aplicado no Ranker.');
 ok(/riscoRs\s*=/.test(rankerCode) && /distStopFinal/.test(rankerCode),
   'riscoRs nao e recalculado apos a quantidade final.');
-ok(/RANKER_MIN_LOTE_VALUE/.test(coreCfg) && /RANKER_MIN_LOTE_PCT/.test(coreCfg),
-  'Configs RANKER_MIN_LOTE_* ausentes em 01_Core_Config.js.');
-console.log('  OK: laco guloso removido; piso de utilidade e recalculo de risco presentes.');
+// v15.1: o `qtd` do Position Sizing precisa ser tratado como TETO de risco.
+ok(/_qtdTeto/.test(rankerCode),
+  'Teto de risco do Position Sizing (_qtdTeto) ausente — Ranker pode inflar a quantidade.');
+ok(/qtdAlvo > tv\._qtdTeto/.test(rankerCode),
+  'Alocacao nao limita qtdAlvo ao teto de risco do position sizing.');
+ok(/RANKER_MIN_LOTE_VALUE/.test(coreCfg),
+  'Config RANKER_MIN_LOTE_VALUE ausente em 01_Core_Config.js.');
+ok(/RANKER_ALOCACAO_POR_SCORE/.test(coreCfg) && /RANKER_ALOCACAO_POR_SCORE/.test(rankerCode),
+  'Flag RANKER_ALOCACAO_POR_SCORE ausente (config ou leitura no Ranker).');
+console.log('  OK: tetos, piso de utilidade, teto de risco e recalculo de risco presentes.');
+
 
 // ---------------------------------------------------------------------------
-// (2) SIMULAÇÃO NUMÉRICA — algoritmo idêntico ao da produção (bloco 5.1)
+// (2) CASO REAL DO LOG — executa o código de produção
 // ---------------------------------------------------------------------------
-console.log('\n=== (2) Cenario real: 13 aprovados, capital R$ 20.000 ===');
+console.log('\n=== (2) Cenario real do log: 13 aprovados, capital R$ 20.000 ===');
 
 var CAPITAL = 20000;
 var CFG = {
   MAX_TRADE_ALLOCATION: 0.25,
   MAX_TOTAL_ALLOCATION: 0.95,
   MIN_LOTE_VALUE: 500,
-  MIN_LOTE_PCT: 0.10
+  ALOCACAO_POR_SCORE: true
 };
 
 /**
- * Réplica fiel do bloco 5.1 de 41_Ranker.js (v15.0).
- * @param {Array} trades lista no formato produzido pelo Ranker.
- * @param {Object} cfg configuração (tetos + piso).
- * @return {Object} { trades, descartados, valorAlocado, maxTotalValue }.
+ * Reconstrói o trade como 41_Ranker.js o recebe: `qtd` = quantidade que gasta
+ * o risco-alvo (2% do capital), já limitada pelo teto de 25% — exatamente o
+ * que PositionGeometry.dimensionar() devolve ANTES do Ranker cortar.
+ *
+ * @param {string} ticker código do ativo.
+ * @param {number} score score final do Sentinela.
+ * @param {number} preco preço de execução.
+ * @param {number} distStop distância até o stop (R$/ação).
+ * @param {number} qtdLog quantidade que apareceu no log (já pós-Ranker).
+ * @return {Object} trade no formato do Ranker.
  */
-function alocar(trades, cfg) {
-  var maxTotalValue = CAPITAL * cfg.MAX_TOTAL_ALLOCATION;
-  var maxTradeValue = CAPITAL * cfg.MAX_TRADE_ALLOCATION;
-  var tradesCapados = [];
-  var tradesDescartados = [];
-
-  var elegiveis = [];
-  for (var e = 0; e < trades.length; e++) {
-    if (trades[e].qtd > 0 && trades[e].preco > 0) elegiveis.push(trades[e]);
-    else tradesDescartados.push({ ticker: trades[e].ticker, motivo: 'quantidade nula' });
-  }
-
-  function _pesoScore(t) {
-    var p = (Number(t.score) || 0) - 50;
-    return p > 1 ? p : 1;
-  }
-
-  var alvo = {};
-  var vivos = elegiveis.slice();
-  var valorAlocado = 0;
-
-  for (var ciclo = 0; ciclo < 8 && vivos.length > 0; ciclo++) {
-    var disponivel = maxTotalValue - valorAlocado;
-    if (disponivel <= 0) break;
-
-    var pendentes = vivos.filter(function (x) { return alvo[x.ticker] === undefined; });
-    if (pendentes.length === 0) break;
-
-    var somaPesosCiclo = 0;
-    for (var c = 0; c < pendentes.length; c++) somaPesosCiclo += _pesoScore(pendentes[c]);
-    if (somaPesosCiclo <= 0) break;
-
-    var sobreviventes = [];
-    var descartadosCiclo = [];
-
-    for (var m = 0; m < pendentes.length; m++) {
-      var tv = pendentes[m];
-      var cota = disponivel * (_pesoScore(tv) / somaPesosCiclo);
-      var alvoTrade = Math.min(cota, maxTradeValue);
-      var qtdAlvo = Math.floor(alvoTrade / tv.preco);
-      if (qtdAlvo < 1) qtdAlvo = 0;
-
-      // Piso de utilidade (idêntico à produção v15.0)
-      var valorPosicao = qtdAlvo * tv.preco;
-      var ehAtivoCaro = (tv.preco >= cfg.MIN_LOTE_VALUE);
-      var pisoExigido = ehAtivoCaro ? 0 : cfg.MIN_LOTE_VALUE;
-
-      if (qtdAlvo >= 1 && valorPosicao >= pisoExigido) {
-        sobreviventes.push(tv);
-      } else {
-        var motivo = (qtdAlvo < 1)
-          ? 'capital insuficiente (1 acao = R$ ' + tv.preco.toFixed(2) + ' > cota R$ ' + alvoTrade.toFixed(2) + ')'
-          : 'abaixo do piso (R$ ' + valorPosicao.toFixed(2) + ' < R$ ' + pisoExigido.toFixed(2) + ')';
-        descartadosCiclo.push({ t: tv, motivo: motivo });
-      }
-    }
-
-    if (descartadosCiclo.length > 0) {
-      vivos = vivos.filter(function (x) {
-        for (var d = 0; d < descartadosCiclo.length; d++) {
-          if (descartadosCiclo[d].t.ticker === x.ticker) return false;
-        }
-        return true;
-      });
-      for (var dd = 0; dd < descartadosCiclo.length; dd++) {
-        tradesDescartados.push({ ticker: descartadosCiclo[dd].t.ticker, motivo: descartadosCiclo[dd].motivo });
-      }
-      continue;
-    }
-
-    for (var s = 0; s < sobreviventes.length; s++) {
-      var ts = sobreviventes[s];
-      var cotaS = disponivel * (_pesoScore(ts) / somaPesosCiclo);
-      var alvoS = Math.min(cotaS, maxTradeValue);
-      var qtdS = Math.floor(alvoS / ts.preco);
-      alvo[ts.ticker] = qtdS * ts.preco;
-      valorAlocado += alvo[ts.ticker];
-      tradesCapados.push(ts);
-    }
-    break;
-  }
-
-  for (var f = 0; f < tradesCapados.length; f++) {
-    var tf = tradesCapados[f];
-    var qtdFinal = Math.floor(alvo[tf.ticker] / tf.preco);
-    tf.qtdOriginal = tf.qtd;
-    tf.qtd = qtdFinal;
-    tf.alocacao = (qtdFinal * tf.preco) / CAPITAL;
-    var dist = tf.preco - tf.stop;
-    tf.riscoRs = (dist > 0) ? qtdFinal * dist : 0;
-  }
-
-  valorAlocado = tradesCapados.reduce(function (s, t) { return s + t.qtd * t.preco; }, 0);
-  tradesCapados.sort(function (a, b) { return b.score - a.score; });
-
-  return { trades: tradesCapados, descartados: tradesDescartados, valorAlocado: valorAlocado, maxTotalValue: maxTotalValue };
+function trade(ticker, score, preco, distStop, qtdLog) {
+  var porRisco = Math.floor((CAPITAL * 0.02) / distStop);
+  var porTeto = Math.floor((CAPITAL * CFG.MAX_TRADE_ALLOCATION) / preco);
+  var qtdSizing = Math.min(qtdLog, Math.max(porRisco, porTeto));
+  return {
+    ticker: ticker, score: score, preco: preco,
+    stop: preco - distStop, qtd: qtdSizing
+  };
 }
 
-// Dataset com os 13 aprovados do log real (score, preço, stop e qtd que o
-// position sizing de 2% produziu). `qtd` é o valor INICIAL (antes da alocação).
-function linha(ticker, preco, stop, score, qtdInicial) {
-  return { ticker: ticker, preco: preco, stop: stop, score: score, qtd: qtdInicial, riscoRs: 0, alocacao: 0 };
-}
-
+// Valores do log de 25/10 (score final do Sentinela, preço, distância do stop).
 var cenárioReal = [
-  linha('ITUB4', 33.20, 31.90, 62, 452),
-  linha('BBDC4', 15.40, 14.80, 53, 666),
-  linha('BBAS3', 21.50, 20.60, 64, 444),
-  linha('VIVA3', 24.80, 23.60, 95, 333),
-  linha('SBSP3', 88.40, 84.50, 84, 102),
-  linha('TAEE11', 35.10, 33.60, 97, 266),
-  linha('HYPE3', 28.70, 27.30, 64, 285),
-  linha('SAPR11', 46.20, 44.10, 87, 190),
-  linha('ITSA4', 35.30, 34.10, 61, 1666),
-  linha('CMIG4', 12.10, 11.55, 42, 363),
-  linha('KLBN11', 20.40, 19.40, 42, 200),
-  linha('RDOR3', 26.30, 24.90, 88, 142),
-  linha('ISAE4', 18.70, 17.80, 43, 222),
-  // Scores altos que o algoritmo antigo descartava (Bug 4)
-  linha('RADL3', 22.10, 20.90, 72, 166)
+  trade('ITUB4', 100, 33.20, 1.00, 103),
+  trade('BBDC4', 100, 20.00, 1.17, 245),
+  trade('SBSP3', 100, 88.40, 1.24, 156),
+  trade('RDOR3', 100, 26.30, 0.65, 114),
+  trade('TAEE11', 100, 35.10, 1.42, 111),
+  trade('ITSA4', 94, 35.30, 0.61, 326),
+  trade('VIVA3', 91, 24.80, 0.75, 184),
+  trade('BBAS3', 89, 21.50, 0.42, 202),
+  trade('HYPE3', 86, 28.70, 0.53, 183),
+  trade('ISAE4', 86, 61.20, 2.26, 176),
+  trade('SAPR11', 86, 46.20, 1.07, 119),
+  trade('CMIG4', 81, 20.50, 0.61, 428),
+  trade('RADL3', 74, 22.10, 1.31, 246)
 ];
+// Guarda a quantidade de entrada para checar que o Ranker só reduz.
+cenárioReal.forEach(function (t) { t._qtdInicial = t.qtd; });
 
-var res = alocar(cenárioReal, CFG);
+var res = harness.alocarComCodigoReal(cenárioReal, CFG, CAPITAL);
 
-console.log('  Capital          : R$ ' + CAPITAL.toFixed(2) + ' (teto R$ ' + res.maxTotalValue.toFixed(2) + ')');
+var valorTotal = res.trades.reduce(function (s, t) { return s + t.qtd * t.preco; }, 0);
+var riscoTotal = res.trades.reduce(function (s, t) { return s + t.riscoRs; }, 0);
+
+console.log('  Capital          : R$ ' + CAPITAL.toFixed(2) + ' (teto R$ ' + (CAPITAL * 0.95).toFixed(2) + ')');
 console.log('  Elegiveis        : ' + cenárioReal.length);
 console.log('  Na carteira      : ' + res.trades.length);
-console.log('  Valor alocado    : R$ ' + res.valorAlocado.toFixed(2) +
-  ' (' + (res.valorAlocado / CAPITAL * 100).toFixed(1) + '%)');
-console.log('\n  Ticker   | score | preco  | qtd  | valor      | % cap  | risco R$');
+console.log('\n  Ticker   | score | preco  | sizing -> rank | valor      | % cap  | risco R$');
 res.trades.forEach(function (t) {
+  var v = t.qtd * t.preco;
   console.log('  ' + t.ticker.padEnd(8) + ' | ' + String(t.score).padStart(5) + ' | ' +
-    t.preco.toFixed(2).padStart(6) + ' | ' + String(t.qtd).padStart(4) + ' | ' +
-    (t.qtd * t.preco).toFixed(2).padStart(10) + ' | ' +
-    (t.alocacao * 100).toFixed(2).padStart(6) + ' | ' + t.riscoRs.toFixed(2).padStart(8));
+    t.preco.toFixed(2).padStart(6) + ' | ' + String(t._qtdInicial).padStart(6) + ' -> ' +
+    String(t.qtd).padStart(4) + ' | ' + v.toFixed(2).padStart(10) + ' | ' +
+    (100 * v / CAPITAL).toFixed(2).padStart(6) + ' | ' + t.riscoRs.toFixed(2).padStart(8));
 });
-if (res.descartados.length) {
+if (res.warns.length) {
   console.log('\n  Descartados:');
-  res.descartados.forEach(function (d) { console.log('    - ' + d.ticker + ': ' + d.motivo); });
+  res.warns.forEach(function (w) { console.log('    ' + w.trim()); });
 }
+console.log('\n  Agregado: R$ ' + valorTotal.toFixed(2) + ' (' + (valorTotal / CAPITAL * 100).toFixed(2) +
+  '%) | risco R$ ' + riscoTotal.toFixed(2) + ' (' + (riscoTotal / CAPITAL * 100).toFixed(2) + '%)');
+
 
 // --- Asserções do cenário real ---
-ok(res.valorAlocado <= res.maxTotalValue + 0.01,
-  'Alocacao agregada R$ ' + res.valorAlocado.toFixed(2) + ' excedeu o teto de R$ ' + res.maxTotalValue.toFixed(2));
+ok(valorTotal <= CAPITAL * CFG.MAX_TOTAL_ALLOCATION + 0.01,
+  'Alocacao R$ ' + valorTotal.toFixed(2) + ' estourou o teto de R$ ' + (CAPITAL * 0.95).toFixed(2));
 
-// Nenhuma posição-token: todo trade precisa valer >= R$ 500 (piso R$)
+// Nenhum trade pode ter sido AUMENTADO acima do que o position sizing aprovou
 res.trades.forEach(function (t) {
-  ok(t.qtd * t.preco >= CFG.MIN_LOTE_VALUE - 0.01,
+  ok(t.qtd <= t._qtdInicial,
+    t.ticker + ': Ranker AUMENTOU a quantidade (' + t.qtd + ' > ' + t._qtdInicial + ') — risco estourado.');
+});
+
+// Risco por trade nunca acima do risco-alvo de 2% do capital
+res.trades.forEach(function (t) {
+  ok(t.riscoRs <= CAPITAL * 0.02 + 0.01,
+    t.ticker + ': risco R$ ' + t.riscoRs.toFixed(2) + ' acima de 2% do capital.');
+});
+
+// Teto por trade (25%)
+res.trades.forEach(function (t) {
+  ok(t.qtd * t.preco <= CAPITAL * CFG.MAX_TRADE_ALLOCATION + 0.01,
+    t.ticker + ' excedeu o teto por trade: R$ ' + (t.qtd * t.preco).toFixed(2));
+});
+
+// Nenhuma posição-token
+res.trades.forEach(function (t) {
+  ok(t.qtd >= 1 && t.qtd * t.preco >= CFG.MIN_LOTE_VALUE - 0.01,
     t.ticker + ' ficou como posicao-token: R$ ' + (t.qtd * t.preco).toFixed(2));
-  ok(t.qtd >= 1, t.ticker + ' com quantidade zero na carteira.');
 });
 
-// Nenhum trade isolado pode estourar o teto por trade (25%)
-res.trades.forEach(function (t) {
-  ok(t.alocacao <= CFG.MAX_TRADE_ALLOCATION + 0.0001,
-    t.ticker + ' excedeu o teto por trade: ' + (t.alocacao * 100).toFixed(2) + '%');
-});
-
-// riscoRs coerente com a quantidade final (o bug antigo deixava o valor antigo)
+// riscoRs coerente com a quantidade final
 res.trades.forEach(function (t) {
   var esperado = t.qtd * (t.preco - t.stop);
   ok(Math.abs(t.riscoRs - esperado) < 0.02,
     t.ticker + ': riscoRs ' + t.riscoRs.toFixed(2) + ' != qtd x distStop ' + esperado.toFixed(2));
 });
 
-// A distribuição deve cobrir a MAIORIA dos elegíveis: o algoritmo antigo
-// descartava 8 de 13 por ORDEM DE FILA (inclusive scores 95-100). Aqui os
-// únicos descartes aceitáveis são os que não atingem o piso de R$ 500 —
-// tipicamente os de score baixo com preço que gera lote minúsculo.
-var descartadosPorPiso = res.descartados.filter(function (d) { return /piso/.test(d.motivo); });
-ok(res.trades.length >= 10,
-  'Apenas ' + res.trades.length + ' trades na carteira (esperado >= 10).');
-ok(descartadosPorPiso.length === res.descartados.length,
-  'Houve descarte que NAO foi por piso de utilidade: ' +
-  res.descartados.filter(function (d) { return !/piso/.test(d.motivo); })
-    .map(function (d) { return d.ticker + ' (' + d.motivo + ')'; }).join(', '));
-// Os descartados por piso devem ser todos de score baixo (< 55): o que acontecia
-// antes era justamente descartar score alto por falta de caixa na fila.
-descartadosPorPiso.forEach(function (d) {
-  var t = cenárioReal.filter(function (x) { return x.ticker === d.ticker; })[0];
-  ok(t && t.score < 55, d.ticker + ' (score ' + (t ? t.score : '?') + ') foi descartado por piso — score alto nao deveria cair.');
-});
-console.log('\n  Descartados por piso: ' + descartadosPorPiso.length +
-  ' (todos com score < 55: ' +
-  descartadosPorPiso.every(function (d) {
-    var t = cenárioReal.filter(function (x) { return x.ticker === d.ticker; })[0];
-    return t && t.score < 55;
-  }) + ')');
+// Todos os 13 devem caber (o cenário cabe no teto de 95%)
+ok(res.trades.length === cenárioReal.length,
+  'Apenas ' + res.trades.length + '/' + cenárioReal.length + ' trades na carteira — ' +
+  'neste cenario o capital deveria cobrir todos.');
+ok(res.warns.length === 0,
+  'Houve ' + res.warns.length + ' descarte(s) em cenario que cabe no capital.');
 
+// Score alto deve alocar MAIS que score baixo (monotonicidade real, tolerando
+// arredondamento de lote: 1 ação do papel mais caro)
+var ordenado = res.trades.slice().sort(function (a, b) { return b.score - a.score; });
+for (var i = 1; i < ordenado.length; i++) {
+  var ant = ordenado[i - 1], at = ordenado[i];
+  if (ant.score === at.score) continue;
+  var vAnt = ant.qtd * ant.preco, vAt = at.qtd * at.preco;
+  var maiorAcao = Math.max(ant.preco, at.preco);
+  ok(vAnt >= vAt - maiorAcao,
+    'Peso invertido: ' + ant.ticker + ' (score ' + ant.score + ', R$ ' + vAnt.toFixed(2) +
+    ') alocou menos que ' + at.ticker + ' (score ' + at.score + ', R$ ' + vAt.toFixed(2) + ').');
+}
 
-// Scores altos NAO podem ser preteridos por scores baixos
-var naCarteira = res.trades.map(function (t) { return t.ticker; });
-['TAEE11', 'VIVA3', 'BBAS3', 'SAPR11', 'HYPE3'].forEach(function (tk) {
-  ok(naCarteira.indexOf(tk) !== -1, tk + ' (score alto) ficou fora da carteira.');
-});
+// Capital não pode ficar ocioso em cenário que cabe
+ok(valorTotal / CAPITAL > 0.90,
+  'Capital ocioso: apenas ' + (valorTotal / CAPITAL * 100).toFixed(1) + '% alocado.');
 
-// Score maior => alocacao maior (monotonicidade do peso)
-res.trades.forEach(function (a) {
-  res.trades.forEach(function (b) {
-    if (a.score > b.score && a.preco === b.preco) {
-      ok(a.qtd >= b.qtd, 'Peso invertido entre ' + a.ticker + ' (' + a.score + ') e ' + b.ticker + ' (' + b.score + ')');
-    }
-  });
-});
+// Risco agregado coerente (soma dos riscos, nada de número mágico)
+ok(riscoTotal > 0 && riscoTotal < CAPITAL * 0.10,
+  'Risco agregado fora do razoavel: R$ ' + riscoTotal.toFixed(2));
 
-// Verba nao pode ficar ociosa: com 13-14 elegiveis, deve usar > 85% do capital
-ok(res.valorAlocado / CAPITAL > 0.85,
-  'Capital ocioso: apenas ' + (res.valorAlocado / CAPITAL * 100).toFixed(1) + '% alocado.');
 
 // ---------------------------------------------------------------------------
 // (3) CASOS DE BORDA
 // ---------------------------------------------------------------------------
 console.log('\n=== (3) Casos de borda ===');
 
-// 3.1 Único trade: recebe até o teto por trade, nunca mais que isso
-var resUnico = alocar([linha('UNICO3', 10.00, 9.00, 90, 5000)], CFG);
-ok(resUnico.trades.length === 1, 'Trade unico deveria entrar na carteira.');
-ok(resUnico.trades[0].alocacao <= CFG.MAX_TRADE_ALLOCATION + 0.0001,
-  'Trade unico excedeu o teto de 25%: ' + (resUnico.trades[0].alocacao * 100).toFixed(2) + '%');
-ok(resUnico.valorAlocado <= CAPITAL * CFG.MAX_TRADE_ALLOCATION + 0.01,
-  'Trade unico alocou acima do teto por trade.');
-console.log('  Unico trade    : ' + resUnico.trades[0].qtd + ' acoes, R$ ' +
-  resUnico.valorAlocado.toFixed(2) + ' (' + (resUnico.trades[0].alocacao * 100).toFixed(1) + '%)');
-
-// 3.2 Ativo caríssimo (mesmo 1 ação custa mais que o teto por trade) => descartado com motivo
-var resCaro = alocar([linha('CARO3', 999999.00, 999000.00, 99, 5)], CFG);
-ok(resCaro.trades.length === 0, 'Ativo com 1 acao > teto por trade deveria ser descartado.');
-ok(resCaro.descartados.length === 1 && /capital insuficiente/.test(resCaro.descartados[0].motivo),
-  'Motivo do descarte do ativo caro nao reportado corretamente.');
-console.log('  Ativo caro     : descartado -> ' + (resCaro.descartados[0] || {}).motivo);
-
-// 3.3 Muitos trades baratos: teto agregado deve ser respeitado e nenhum token
-var muitos = [];
-for (var q = 1; q <= 40; q++) muitos.push(linha('AAA' + q + '3', 5.00, 4.60, 60 + q, 800));
-var resMuitos = alocar(muitos, CFG);
-ok(resMuitos.valorAlocado <= resMuitos.maxTotalValue + 0.01,
-  '40 trades estouraram o teto agregado: R$ ' + resMuitos.valorAlocado.toFixed(2));
-ok(resMuitos.trades.length > 0, 'Nenhum trade sobreviveu com 40 elegiveis baratos.');
-var menor = resMuitos.trades.reduce(function (min, t) { return Math.min(min, t.qtd * t.preco); }, Infinity);
-ok(menor >= CFG.MIN_LOTE_VALUE - 0.01, 'Token em cenario de 40 trades: R$ ' + menor.toFixed(2));
-console.log('  40 baratos     : ' + resMuitos.trades.length + ' na carteira, R$ ' +
-  resMuitos.valorAlocado.toFixed(2) + ', menor posicao R$ ' + menor.toFixed(2));
-
-// 3.4 Ativo caro preservado pelo piso MISTO (10% do alvo < R$ 500)
-// Preço alto => poucas ações; o piso misto deve evitar descarte injusto.
-var resMisto = alocar([
-  linha('BARATO3', 5.00, 4.60, 60, 800),
-  linha('MEDIO3', 40.00, 37.00, 75, 100),
-  linha('ALTO3', 900.00, 850.00, 95, 10)
-], CFG);
-var altoOk = resMisto.trades.filter(function (t) { return t.ticker === 'ALTO3'; })[0];
-ok(!!altoOk, 'Ativo caro ALTO3 foi descartado apesar do piso misto.');
-if (altoOk) {
-  ok(altoOk.qtd * altoOk.preco >= Math.min(CFG.MIN_LOTE_VALUE, altoOk.alocacao * CAPITAL * CFG.MIN_LOTE_PCT) - 0.01,
-    'ALTO3 abaixo do piso misto.');
-  console.log('  Piso misto     : ALTO3 ' + altoOk.qtd + ' acao(oes) = R$ ' +
-    (altoOk.qtd * altoOk.preco).toFixed(2) + ' (piso R$ ' + CFG.MIN_LOTE_VALUE + ')');
+/**
+ * Roda o código de produção e devolve métricas agregadas.
+ * @param {string} nome rótulo do cenário.
+ * @param {Array} trades lista de trades.
+ * @param {number} capital capital.
+ * @return {Object} { r, valor, risco }.
+ */
+function rodar(nome, trades, capital) {
+  var r = harness.alocarComCodigoReal(JSON.parse(JSON.stringify(trades)), CFG, capital);
+  var valor = r.trades.reduce(function (s, t) { return s + t.qtd * t.preco; }, 0);
+  var risco = r.trades.reduce(function (s, t) { return s + t.riscoRs; }, 0);
+  console.log('  ' + nome.padEnd(26) + ' trades ' + String(r.trades.length).padStart(2) +
+    ' | alocado ' + (100 * valor / capital).toFixed(2).padStart(6) + '%' +
+    ' | risco ' + (100 * risco / capital).toFixed(2).padStart(5) + '%' +
+    ' | descartes ' + r.warns.length);
+  return { r: r, valor: valor, risco: risco };
 }
+
+function mk(k, s, p, d, q) { return { ticker: k, score: s, preco: p, stop: p - d, qtd: q }; }
+
+// 3.1 Único trade: nunca passa do teto por trade.
+// Nota: o teto de RISCO (`qtd` do sizing, 5000 ações) é mais frouxo que o teto
+// de capital (25%), então quem manda aqui é o de capital.
+var unico = rodar('unico trade', [mk('UNI3', 90, 10.00, 1.00, 5000)], CAPITAL);
+ok(unico.r.trades.length === 1, 'Trade unico deveria entrar na carteira.');
+ok(unico.valor <= CAPITAL * CFG.MAX_TRADE_ALLOCATION + 0.01,
+  'Trade unico alocou acima do teto por trade: R$ ' + unico.valor.toFixed(2));
+// Com stop apertado o teto de 25% permite risco acima da meta de 2%/trade —
+// isso é consequência do teto de capital, e precisa ser REPORTADO, não mudo.
+ok(unico.risco / CAPITAL <= CFG.MAX_TRADE_ALLOCATION,
+  'Risco do trade unico absurdo: ' + (unico.risco / CAPITAL * 100).toFixed(2) + '% do capital.');
+
+// 3.2 Ativo caríssimo (1 ação > teto por trade) => descartado com motivo
+var caro = rodar('ativo carissimo 999k', [mk('CARO3', 99, 999999.00, 999.00, 5)], CAPITAL);
+ok(caro.r.trades.length === 0, 'Ativo com 1 acao > teto por trade deveria ser descartado.');
+var descarteCaro = caro.r.warns.join('\n');
+ok(/CARO3: capital insuficiente/.test(descarteCaro),
+  'Motivo do descarte do ativo caro nao reportado: ' + descarteCaro);
+
+// 3.3 Muitos ativos baratos (aperto): teto agregado respeitado, sem token
+var muitos = [];
+for (var q = 1; q <= 40; q++) muitos.push(mk('AAA' + q + '3', 60 + (q % 30), 5.00, 0.10, 800));
+var resMuitos = rodar('40 ativos baratos', muitos, CAPITAL);
+ok(resMuitos.valor <= CAPITAL * CFG.MAX_TOTAL_ALLOCATION + 0.01,
+  '40 ativos estouraram o teto agregado: R$ ' + resMuitos.valor.toFixed(2));
+ok(resMuitos.r.trades.length > 0, 'Nenhum trade sobreviveu com 40 elegiveis.');
+ok(resMuitos.risco <= CAPITAL * CFG.MAX_TOTAL_ALLOCATION + 0.01,
+  'Risco agregado absurdo no aperto: R$ ' + resMuitos.risco.toFixed(2));
+var menorMuitos = resMuitos.r.trades.reduce(function (m, t) { return Math.min(m, t.qtd * t.preco); }, Infinity);
+ok(menorMuitos >= CFG.MIN_LOTE_VALUE - 0.01, 'Token em cenario de 40 trades: R$ ' + menorMuitos.toFixed(2));
+
+// 3.4 Ativo caro preservado pelo piso (1 ação já vale >= R$ 500)
+var misto = rodar('caro 900 + papeis', [
+  mk('BAR3', 60, 5.00, 0.40, 800),
+  mk('MED3', 75, 40.00, 3.00, 100),
+  mk('ALT3', 95, 900.00, 50.00, 10)
+], CAPITAL);
+var alvoAlto = misto.r.trades.filter(function (t) { return t.ticker === 'ALT3'; })[0];
+ok(!!alvoAlto, 'Ativo caro ALT3 foi descartado (piso deveria preservar 1 acao >= R$ 500).');
+
+// 3.5 Aperto severo: 20 ativos, capital curto — score precisa ordenar a fila
+var vinte = [];
+for (var w = 1; w <= 20; w++) vinte.push(mk('BBB' + w + '3', 55 + w * 2, 20.00, 0.50, 500));
+var aperto = rodar('20 ativos, aperto', vinte, CAPITAL);
+ok(aperto.valor <= CAPITAL * CFG.MAX_TOTAL_ALLOCATION + 0.01,
+  'Aperto estourou o teto agregado: R$ ' + aperto.valor.toFixed(2));
+aperto.r.trades.forEach(function (t) {
+  ok(t.qtd * (t.preco - t.stop) <= CAPITAL * 0.02 + 0.01,
+    t.ticker + ' estourou o risco-alvo no aperto: R$ ' +
+    (t.qtd * (t.preco - t.stop)).toFixed(2));
+});
+// No aperto, os maiores scores devem estar dentro
+var scoresNaCarteira = aperto.r.trades.map(function (t) { return t.score; });
+var maiorFora = vinte.filter(function (t) { return scoresNaCarteira.indexOf(t.score) === -1; })
+  .reduce(function (m, t) { return Math.max(m, t.score); }, 0);
+ok(maiorFora < Math.max.apply(null, scoresNaCarteira),
+  'Score ' + maiorFora + ' ficou fora enquanto score menor entrou.');
+
+// 3.6 Cenário que expõe o bug da v15.0: papéis com distância de stop muito
+// diferente. A v15.0 dava a MESMA cota em R$ para os dois, ignorando o `qtd`
+// do sizing — o papel de stop largo recebia 5x mais risco.
+var stops = [
+  mk('APER3', 80, 20.00, 0.50, 400),   // stop apertado: risco-alvo em 400 ações
+  mk('LARG3', 80, 20.00, 2.50, 80)     // stop largo:   risco-alvo em 80 ações
+];
+var resStops = rodar('stops desiguais', stops, CAPITAL);
+var ap = resStops.r.trades.filter(function (t) { return t.ticker === 'APER3'; })[0];
+var lg = resStops.r.trades.filter(function (t) { return t.ticker === 'LARG3'; })[0];
+ok(!!ap && !!lg, 'Cenario de stops desiguais perdeu um dos ativos.');
+if (ap && lg) {
+  ok(ap.riscoRs <= CAPITAL * 0.02 + 0.01, 'APER3 estourou o risco-alvo: R$ ' + ap.riscoRs.toFixed(2));
+  ok(lg.riscoRs <= CAPITAL * 0.02 + 0.01, 'LARG3 estourou o risco-alvo: R$ ' + lg.riscoRs.toFixed(2));
+  ok(lg.qtd <= 80, 'LARG3 foi inflado acima do sizing (' + lg.qtd + ' > 80).');
+}
+
+// 3.7 Com a distribuição por score DESLIGADA, cada trade fica no próprio
+// risco (comportamento de auditoria quando o usuário quer "risco puro").
+var cfgSemScore = {
+  MAX_TRADE_ALLOCATION: CFG.MAX_TRADE_ALLOCATION,
+  MAX_TOTAL_ALLOCATION: CFG.MAX_TOTAL_ALLOCATION,
+  MIN_LOTE_VALUE: CFG.MIN_LOTE_VALUE,
+  ALOCACAO_POR_SCORE: false
+};
+var semScoreTrades = JSON.parse(JSON.stringify(cenárioReal));
+var semScore = harness.alocarComCodigoReal(semScoreTrades, cfgSemScore, CAPITAL);
+var valorSemScore = semScore.trades.reduce(function (s, t) { return s + t.qtd * t.preco; }, 0);
+var riscoSemScore = semScore.trades.reduce(function (s, t) { return s + t.riscoRs; }, 0);
+console.log('  ' + 'score desligado'.padEnd(26) + ' trades ' + String(semScore.trades.length).padStart(2) +
+  ' | alocado ' + (100 * valorSemScore / CAPITAL).toFixed(2).padStart(6) + '%' +
+  ' | risco ' + (100 * riscoSemScore / CAPITAL).toFixed(2).padStart(5) + '%');
+ok(valorSemScore <= CAPITAL * CFG.MAX_TOTAL_ALLOCATION + 0.01,
+  'Modo sem score estourou o teto agregado: R$ ' + valorSemScore.toFixed(2));
+semScore.trades.forEach(function (t) {
+  ok(t.qtd <= t._qtdInicial,
+    t.ticker + ': modo sem score AUMENTOU a quantidade (' + t.qtd + ' > ' + t._qtdInicial + ').');
+});
 
 // ---------------------------------------------------------------------------
 // RESULTADO
 // ---------------------------------------------------------------------------
 console.log('\n' + '-'.repeat(60));
-if (falhas.length === 0) {
-  console.log('SUCESSO: ' + checks + '/' + checks + ' verificacoes passaram (Bug 4 / Ranker v15.0).');
-} else {
-  falhas.forEach(function (f) { console.log('  FALHOU: ' + f); });
-  console.log('\nFALHA: ' + falhas.length + ' de ' + checks + ' verificacoes falharam.');
-  process.exitCode = 1;
+if (falhas.length) {
+  console.log('FALHAS (' + falhas.length + '/' + checks + '):');
+  falhas.forEach(function (f) { console.log('  X ' + f); });
+  process.exit(1);
 }
-
-
-
+console.log('SUCESSO: ' + checks + '/' + checks + ' verificacoes passaram (Bug 4 / Ranker v15.1).');

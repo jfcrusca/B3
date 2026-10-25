@@ -104,8 +104,13 @@ var CONFIG = (function() {
     // EXCEÇÃO: ativo cujo PREÇO unitário já supera o piso (papel caro) é aceito
     // com a quantidade mínima executável — não punir o ativo por ser caro.
     RANKER_MIN_LOTE_VALUE: 500,
-    // Reservado para piso relativo em cenários de capital muito fracionado.
-    RANKER_MIN_LOTE_PCT: 0.10,
+    // 🔧 v15.1: o Ranker NUNCA aumenta a quantidade acima da que o Position
+    // Sizing aprovou (o `qtd` do sizing é o teto de risco, ~2% do capital por
+    // trade). Se um cenário exigir posições maiores, ajuste RISCO_POR_TRADE.
+    // 🔧 v15.0/v15.1: distribuição por score ligada (peso = score − 50).
+    // Desligar (`false`) faz cada trade receber exatamente o tamanho do seu
+    // risco; ligada, o score ordena a fila quando o capital não cobre todos.
+    RANKER_ALOCACAO_POR_SCORE: true,
     // 🔧 v12.8/v13.4: Convivência da coluna "Cotação Atual" (H) da aba Carteira.
     // 'auto'   = se detectar fórmula na coluna, o robô NÃO a sobrescreve.
     // 'formula'= o robô nunca escreve a coluna (100% fórmula do usuário).

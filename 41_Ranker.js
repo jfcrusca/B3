@@ -12,9 +12,12 @@
  *           DISTRIBUÍDO proporcionalmente ao score (peso = score − 50) entre
  *           TODOS os elegíveis, em vez de atender a fila por ordem e descartar
  *           o resto. Cada trade respeita o teto de 25%, e quem ficar abaixo do
- *           piso de utilidade (RANKER_MIN_LOTE_VALUE / RANKER_MIN_LOTE_PCT) é
- *           descartado com motivo explícito, devolvendo o capital ao pote.
- *           Configurável via RANKER_MIN_LOTE_VALUE / RANKER_MIN_LOTE_PCT.
+ *           piso de utilidade (RANKER_MIN_LOTE_VALUE) é descartado com motivo
+ *           explícito, devolvendo o capital ao pote.
+ * 🔧 v15.1: o `qtd` do Position Sizing é TETO de risco (nunca é aumentado).
+ *           O score só ordena a fila quando o capital não cobre todos; se
+ *           cobrir, cada trade recebe exatamente o tamanho do seu risco.
+ *           Desligável via RANKER_ALOCACAO_POR_SCORE.
  */
 
 function PROCESSAR_CARTEIRA_FINAL() {
@@ -83,11 +86,13 @@ function PROCESSAR_CARTEIRA_FINAL() {
   CFG.MAX_TOTAL_ALLOCATION = Number(_cfg('RANKER_MAX_TOTAL_ALLOCATION', 0.95));
   if (!(CFG.MAX_TRADE_ALLOCATION > 0 && CFG.MAX_TRADE_ALLOCATION <= 1)) CFG.MAX_TRADE_ALLOCATION = 0.25;
   if (!(CFG.MAX_TOTAL_ALLOCATION > 0 && CFG.MAX_TOTAL_ALLOCATION <= 1)) CFG.MAX_TOTAL_ALLOCATION = 0.95;
-  // 🔧 v15.0: piso de utilidade do lote (critério misto R$ OU % da alocação-alvo)
+  // 🔧 v15.0: piso de utilidade do lote (absoluto, em R$)
   CFG.MIN_LOTE_VALUE = Number(_cfg('RANKER_MIN_LOTE_VALUE', 500));
-  CFG.MIN_LOTE_PCT = Number(_cfg('RANKER_MIN_LOTE_PCT', 0.10));
   if (!(CFG.MIN_LOTE_VALUE > 0)) CFG.MIN_LOTE_VALUE = 500;
-  if (!(CFG.MIN_LOTE_PCT > 0 && CFG.MIN_LOTE_PCT <= 1)) CFG.MIN_LOTE_PCT = 0.10;
+  // 🔧 v15.1: modo de distribuição do capital entre os trades
+  //   true  = score decide a fila quando o capital não cobre todos (padrão)
+  //   false = cada trade recebe o tamanho do próprio risco, nada mais
+  CFG.ALOCACAO_POR_SCORE = (_cfg('RANKER_ALOCACAO_POR_SCORE', true) !== false);
 
   // =========================================================================
   // 3. CAPITAL TOTAL
@@ -222,7 +227,7 @@ function PROCESSAR_CARTEIRA_FINAL() {
   });
 
   // =========================================================================
-  // 5.1 v15.0: ALOCAÇÃO PROPORCIONAL AO SCORE (carteira teórica ≤ X% do capital)
+  // 5.1 v15.1: ALOCAÇÃO RESPEITANDO O POSITION SIZING + SCORE
   // -------------------------------------------------------------------------
   // ANTES (v12.8, "guloso cego"): o capital era consumido na ordem do score e,
   // quando acabava, o resto era DESCARTADO. Consequências reais (log 25/10,
@@ -231,16 +236,30 @@ function PROCESSAR_CARTEIRA_FINAL() {
   // com qtd=1 (R$ 35, "posição-token") e o `riscoRs` do trade trimado NÃO era
   // recalculado (o risco agregado reportado mentia).
   //
-  // AGORA: o capital elegível (capital × MAX_TOTAL_ALLOCATION) é DISTRIBUÍDO
-  // entre TODOS os elegíveis por peso = score − 50 (score 100 pesa 2,5× o 70).
+  // v15.0: distribuição proporcional ao score (peso = score − 50), teto de 25%
+  //        por trade, piso de utilidade absoluto em R$ e ciclos de devolução
+  //        de capital. Corrigiu o guloso, mas faltava um ingrediente.
+  //
+  // 🔧 v15.1 (bug encontrado no 1º log de produção da v15.0): a cota do trade
+  //        era `disponivel × peso/somaPesos`, ignorando o `qtd` do Position
+  //        Sizing. Efeito: papel com stop largo (ISAE4, R$ 2,26/ação) recebia
+  //        a mesma cota em R$ de um papel apertado (SBSP3, R$ 1,24/ação) —
+  //        comprando 5× mais ações e 5× mais risco. Pior: o Ranker podia
+  //        AUMENTAR a quantidade acima do que o sizing aprovou.
+  //
+  // AGORA a cota é MISTA e o `qtd` do sizing é TETO (nunca é inflado):
+  //   pisoRisco = qtd_sizing × preço      (capital que gasta o risco-alvo)
+  //   cotaScore = disponível × peso/Σpesos (score 100 pesa 2,5× o score 70)
+  //   cota      = clamp(cotaScore, pisoRisco × escala, teto de 25%)
   // Regras:
   //   1) teto por trade (MAX_TRADE_ALLOCATION) — nunca concentra demais;
-  //   2) piso de utilidade MISTO — MENOR entre MIN_LOTE_VALUE (R$) e
-  //      MIN_LOTE_PCT × alocação-alvo do trade. Quem não atinge o piso é
+  //   2) teto de risco: qtdFinal ≤ qtd do Position Sizing (risco ≤ 2%/trade);
+  //   3) piso de utilidade absoluto (MIN_LOTE_VALUE R$). Quem não atinge é
   //      descartado com motivo explícito e seu capital volta ao pote;
-  //   3) ciclos de redistribuição (máx. 5) reaplicam a sobra entre os vivos;
-  //   4) `riscoRs`/`alocacao` são RECALCULADOS após a quantidade final.
+  //   4) ciclos de devolução de capital (máx. 8) redistribuem a sobra;
+  //   5) `riscoRs`/`alocacao` são RECALCULADOS após a quantidade final.
   // =========================================================================
+
   var maxTotalValue = capital * CFG.MAX_TOTAL_ALLOCATION;
   var maxTradeValue = capital * CFG.MAX_TRADE_ALLOCATION;
   var tradesCapados = [];
@@ -256,10 +275,61 @@ function PROCESSAR_CARTEIRA_FINAL() {
     }
   }
 
+  // 🔧 v15.1: `qtd` do Position Sizing é um TETO, nunca um piso.
+  // Cada trade traz qtd = floor(risco × capital / distStop). Isso é o tamanho
+  // que gasta EXATAMENTE o risco-alvo (2%) — qualquer quantidade maior
+  // estoura o risco por trade. O Ranker só pode REDUZIR (por teto de 25% ou
+  // por cota de score), jamais aumentar.
+  // Normaliza distStop > 0 (inclusive ≥ preço: o sizing já aceitou).
+  for (var n = 0; n < elegiveis.length; n++) {
+    var d = elegiveis[n].preco - elegiveis[n].stop;
+    elegiveis[n]._distStop = (d > 0) ? d : 0;
+  }
+
+  // `qtd` do Position Sizing AINDA pode exceder o teto de 25% quando o rápido
+  // de risco é apertado (stop perto): dimensionar() capa por
+  // `capital × MAX_TRADE_ALLOCATION / preço`. Para o Ranker, o teto efetivo é
+  // o MENOR entre a quantidade do sizing e a que caiba em 25% do capital.
+  // O valor de referência para calibrar o score é esse teto efetivo — se a
+  // soma dos tetos já cabe no capital, ninguém precisa ser cortado.
+  var somaCapEfetivo = 0;
+  for (var k = 0; k < elegiveis.length; k++) {
+    var qMaxTrade = Math.floor(maxTradeValue / elegiveis[k].preco);
+    if (qMaxTrade < elegiveis[k].qtd) elegiveis[k]._qtdTeto = qMaxTrade;
+    else elegiveis[k]._qtdTeto = elegiveis[k].qtd;
+    somaCapEfetivo += elegiveis[k]._qtdTeto * elegiveis[k].preco;
+  }
+
   // Peso = score − 50 (o filtro acima já garante score ≥ 50). Piso 1 evita peso 0.
   function _pesoScore(t) {
     var p = (Number(t.score) || 0) - 50;
     return p > 1 ? p : 1;
+  }
+
+  /**
+   * Distribui `pool` (R$) proporcional ao peso de score, respeitando:
+   *   • teto por trade e o teto de risco do próprio trade (`qtd` inicial);
+   *   • alvo-alvo do trade = min(tetoScore, maxTradeValue, capital × MAX_TRADE_ALLOCATION).
+   * NÃO devolve descartes: apenas quantidades (o piso é tratado depois).
+   * @param {Array} lista trades com `_distStop`.
+   * @param {number} pool capital do ciclo.
+   * @return {Object} mapa ticker -> quantidade inteira.
+   */
+  function _distribuir(lista, pool) {
+    var somaPesos = 0;
+    for (var a = 0; a < lista.length; a++) somaPesos += _pesoScore(lista[a]);
+    var out = {};
+    if (somaPesos <= 0) return out;
+    for (var b = 0; b < lista.length; b++) {
+      var tb = lista[b];
+      var cota = pool * (_pesoScore(tb) / somaPesos);
+      var alvoTrade = Math.min(cota, maxTradeValue);
+      var q = Math.floor(alvoTrade / tb.preco);
+      // TETO DE RISCO: nunca passar do tamanho que o position sizing aprovou
+      if (q > tb.qtd) q = tb.qtd;
+      out[tb.ticker] = q > 0 ? q : 0;
+    }
+    return out;
   }
 
   var alvo = {};            // ticker -> R$ fixado para o trade
@@ -278,35 +348,70 @@ function PROCESSAR_CARTEIRA_FINAL() {
     for (var c = 0; c < pendentes.length; c++) somaPesosCiclo += _pesoScore(pendentes[c]);
     if (somaPesosCiclo <= 0) break;
 
-    // FASE 1: simula a distribuição e separa quem NÃO atinge o piso.
+    // FASE 1: simula a distribuição e separa quem NÃO tem lote executável.
     // (O capital dos descartados ainda não foi consumido, então todos usam a
     //  mesma base `disponivel` — só os sobreviventes são fixados na FASE 2.)
     var sobreviventes = [];
     var descartadosCiclo = [];
 
+    // ── COTA DE CADA TRADE (v15.1) ─────────────────────────────────────────
+    // Na v15.0 cada trade recebia `disponivel × peso/somaPesos`, ignorando o
+    // `qtd` do Position Sizing. Efeitos ruins medidos no 1º log de produção:
+    //   • papel de stop largo (ISAE4, R$ 2,26/ação) recebia a mesma cota em R$
+    //     de um papel apertado (SBSP3, R$ 1,24/ação) → 5× mais ações e 5× mais
+    //     risco, estourando o risco-alvo de 2% por trade;
+    //   • o Ranker podia AUMENTAR a quantidade acima do que o sizing aprovou
+    //     (na simulação, ITUB4 subia de 103 para 452 ações).
+    //   • a cota era "pote × peso": com 13 trades bons, o peso relativo já
+    //     embutia o fator 1/13 duas vezes e ninguém chegava ao teto de 25%.
+    //
+    // AGORA a cota é MISTA:
+    //   pisoRisco = valor da posição que gasta o risco-alvo (qtd do sizing)
+    //   cotaScore = distribuição do capital pelo peso (score − 50)
+    //   cota      = clamp(cotaScore, pisoRisco × escalaRisco, maxTradeValue)
+    // Dois regimes:
+    //   (a) TUDO CABE (soma dos tetos ≤ teto agregado): não há disputa. Cada
+    //       trade recebe o tamanho do próprio risco — cortá-lo por score só
+    //       deixaria capital ocioso sem melhorar nenhum risco.
+    //   (b) APERTO: o capital é distribuído pelo peso (score − 50). O score
+    //       alto recebe cota maior; `qtd` do sizing continua sendo o teto de
+    //       RISCO (nunca é ultrapassado), mas não é um "direito a gastar".
+    var escalaRisco = (somaCapEfetivo > 0) ? Math.min(1, disponivel / somaCapEfetivo) : 1;
+    var usaScore = (somaCapEfetivo > disponivel) && (CFG.ALOCACAO_POR_SCORE !== false);
+
     for (var m = 0; m < pendentes.length; m++) {
       var tv = pendentes[m];
-      var cota = disponivel * (_pesoScore(tv) / somaPesosCiclo);
-      var alvoTrade = Math.min(cota, maxTradeValue);
+      var cotaTrade;
+      if (!usaScore) {
+        // Cabe todo mundo: cada trade recebe o teto do seu risco, nada mais.
+        var pisoRisco = tv._qtdTeto * tv.preco * escalaRisco;
+        cotaTrade = Math.min(pisoRisco, maxTradeValue);
+      } else {
+        // Aperto: o score define a cota em R$, proporcionalmente ao capital
+        // e limitada ao teto de 25%. O teto de risco é aplicado depois
+        // (`qtdAlvo > _qtdTeto`), independente da cota.
+        cotaTrade = Math.min(disponivel * (_pesoScore(tv) / somaPesosCiclo), maxTradeValue);
+      }
 
-      var qtdAlvo = Math.floor(alvoTrade / tv.preco);
-      if (qtdAlvo < 1) qtdAlvo = 0;
+      // TETO DE RISCO: nunca maior que o teto efetivo do sizing
+      var qtdAlvo = Math.floor(cotaTrade / tv.preco);
+      if (qtdAlvo > tv._qtdTeto) qtdAlvo = tv._qtdTeto;
+      if (qtdAlvo < 0) qtdAlvo = 0;
 
-      // PISO DE UTILIDADE (misto):
-      //   (a) o lote precisa valer ao menos MIN_LOTE_VALUE em R$ — evita
+      // PISO DE UTILIDADE (absoluto, em R$):
+      //   (a) o lote precisa valer ao menos MIN_LOTE_VALUE — evita
       //       "posição-token" (R$ 56 em 3 ações) que a corretagem consome;
-      //   (b) EXCEÇÃO: se 1 única ação já vale >= o piso (ativo caro, ex.:
-      //       preço R$ 900), aceita-se a posição — não punir o papel por
-      //       ser caro, apenas registrar que é o mínimo executável.
+      //   (b) EXCEÇÃO: se 1 única ação já vale >= o piso (ativo caro), aceita
+      //       a posição — não punir o papel por ser caro.
       var valorPosicao = qtdAlvo * tv.preco;
       var ehAtivoCaro = (tv.preco >= CFG.MIN_LOTE_VALUE);
       var pisoExigido = ehAtivoCaro ? 0 : CFG.MIN_LOTE_VALUE;
 
       if (qtdAlvo >= 1 && valorPosicao >= pisoExigido) {
-        sobreviventes.push(tv);
+        sobreviventes.push({ t: tv, qtd: qtdAlvo });
       } else {
         var motivo = (qtdAlvo < 1)
-          ? 'capital insuficiente (1 ação = R$ ' + tv.preco.toFixed(2) + ' > cota R$ ' + alvoTrade.toFixed(2) + ')'
+          ? 'capital insuficiente (1 ação = R$ ' + tv.preco.toFixed(2) + ' > cota R$ ' + cotaTrade.toFixed(2) + ')'
           : 'abaixo do piso de utilidade (R$ ' + valorPosicao.toFixed(2) + ' < R$ ' + CFG.MIN_LOTE_VALUE.toFixed(0) + ')';
         descartadosCiclo.push({ t: tv, motivo: motivo });
       }
@@ -328,12 +433,9 @@ function PROCESSAR_CARTEIRA_FINAL() {
     }
 
     // FASE 2: sem descartes, fixa as posições e encerra.
-    // Redistribui a sobra de arredondamento do ciclo anterior entre os vivos.
     for (var s = 0; s < sobreviventes.length; s++) {
-      var ts = sobreviventes[s];
-      var cotaS = disponivel * (_pesoScore(ts) / somaPesosCiclo);
-      var alvoS = Math.min(cotaS, maxTradeValue);
-      var qtdS = Math.floor(alvoS / ts.preco);
+      var ts = sobreviventes[s].t;
+      var qtdS = sobreviventes[s].qtd;
       alvo[ts.ticker] = qtdS * ts.preco;
       valorAlocado += alvo[ts.ticker];
       tradesCapados.push(ts);
