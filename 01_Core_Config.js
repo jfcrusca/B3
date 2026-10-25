@@ -97,6 +97,13 @@ var CONFIG = (function() {
     // Teto por trade (25% do capital) e teto AGREGADO da carteira teórica (95%).
     RANKER_MAX_TRADE_ALLOCATION: 0.25,
     RANKER_MAX_TOTAL_ALLOCATION: 0.95,
+    // 🔧 v15.0: PISO DE UTILIDADE do lote (evita "posição-token", ex.: qtd=1).
+    // Um trade cujo valor fique abaixo do piso é DESCARTADO (o capital dele é
+    // redistribuído entre os demais), pois corretagem/B3 consumiriam o ganho.
+    // Critério MISTO: o MENOR entre o piso em R$ e o percentual da alocação-alvo
+    // do trade — assim um ativo caro (preço alto) não é punido duas vezes.
+    RANKER_MIN_LOTE_VALUE: 500,
+    RANKER_MIN_LOTE_PCT: 0.10,
     // 🔧 v12.8/v13.4: Convivência da coluna "Cotação Atual" (H) da aba Carteira.
     // 'auto'   = se detectar fórmula na coluna, o robô NÃO a sobrescreve.
     // 'formula'= o robô nunca escreve a coluna (100% fórmula do usuário).

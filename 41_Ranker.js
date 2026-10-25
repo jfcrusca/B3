@@ -8,6 +8,13 @@
  *           (b) Position Sizing SEM Math.abs; (c) teto por trade (25%) e teto
  *           AGREGADO da carteira teórica (95%) para não ultrapassar o capital.
  *           Configurável via RANKER_MAX_TRADE_ALLOCATION / RANKER_MAX_TOTAL_ALLOCATION.
+ * 🔧 v15.0 (Bug 4): o teto agregado deixou de ser um "guloso cego": o capital é
+ *           DISTRIBUÍDO proporcionalmente ao score (peso = score − 50) entre
+ *           TODOS os elegíveis, em vez de atender a fila por ordem e descartar
+ *           o resto. Cada trade respeita o teto de 25%, e quem ficar abaixo do
+ *           piso de utilidade (RANKER_MIN_LOTE_VALUE / RANKER_MIN_LOTE_PCT) é
+ *           descartado com motivo explícito, devolvendo o capital ao pote.
+ *           Configurável via RANKER_MIN_LOTE_VALUE / RANKER_MIN_LOTE_PCT.
  */
 
 function PROCESSAR_CARTEIRA_FINAL() {
@@ -76,6 +83,11 @@ function PROCESSAR_CARTEIRA_FINAL() {
   CFG.MAX_TOTAL_ALLOCATION = Number(_cfg('RANKER_MAX_TOTAL_ALLOCATION', 0.95));
   if (!(CFG.MAX_TRADE_ALLOCATION > 0 && CFG.MAX_TRADE_ALLOCATION <= 1)) CFG.MAX_TRADE_ALLOCATION = 0.25;
   if (!(CFG.MAX_TOTAL_ALLOCATION > 0 && CFG.MAX_TOTAL_ALLOCATION <= 1)) CFG.MAX_TOTAL_ALLOCATION = 0.95;
+  // 🔧 v15.0: piso de utilidade do lote (critério misto R$ OU % da alocação-alvo)
+  CFG.MIN_LOTE_VALUE = Number(_cfg('RANKER_MIN_LOTE_VALUE', 500));
+  CFG.MIN_LOTE_PCT = Number(_cfg('RANKER_MIN_LOTE_PCT', 0.10));
+  if (!(CFG.MIN_LOTE_VALUE > 0)) CFG.MIN_LOTE_VALUE = 500;
+  if (!(CFG.MIN_LOTE_PCT > 0 && CFG.MIN_LOTE_PCT <= 1)) CFG.MIN_LOTE_PCT = 0.10;
 
   // =========================================================================
   // 3. CAPITAL TOTAL
@@ -210,52 +222,169 @@ function PROCESSAR_CARTEIRA_FINAL() {
   });
 
   // =========================================================================
-  // 5.1 v12.8: TETO AGREGADO DE ALOCAÇÃO (carteira teórica ≤ X% do capital)
+  // 5.1 v15.0: ALOCAÇÃO PROPORCIONAL AO SCORE (carteira teórica ≤ X% do capital)
   // -------------------------------------------------------------------------
-  // Os trades já vêm ordenados por SCORE desc. Consumimos capital na ordem de
-  // prioridade; quando o próximo trade não couber, ele é TRIMADO (reduz a qtd
-  // para caber no restante) ou descartado se o restante for insuficiente.
-  // Evita que a soma das alocações ultrapasse 100% do capital.
+  // ANTES (v12.8, "guloso cego"): o capital era consumido na ordem do score e,
+  // quando acabava, o resto era DESCARTADO. Consequências reais (log 25/10,
+  // 13 aprovados): 8 trades com score 95-100 (TAEE11, VIVA3, BBAS3, SAPR11,
+  // HYPE3, CMIG4, ISAE4, RADL3) caíam enquanto os piores sobravam; ITSA4 ficou
+  // com qtd=1 (R$ 35, "posição-token") e o `riscoRs` do trade trimado NÃO era
+  // recalculado (o risco agregado reportado mentia).
+  //
+  // AGORA: o capital elegível (capital × MAX_TOTAL_ALLOCATION) é DISTRIBUÍDO
+  // entre TODOS os elegíveis por peso = score − 50 (score 100 pesa 2,5× o 70).
+  // Regras:
+  //   1) teto por trade (MAX_TRADE_ALLOCATION) — nunca concentra demais;
+  //   2) piso de utilidade MISTO — MENOR entre MIN_LOTE_VALUE (R$) e
+  //      MIN_LOTE_PCT × alocação-alvo do trade. Quem não atinge o piso é
+  //      descartado com motivo explícito e seu capital volta ao pote;
+  //   3) ciclos de redistribuição (máx. 5) reaplicam a sobra entre os vivos;
+  //   4) `riscoRs`/`alocacao` são RECALCULADOS após a quantidade final.
   // =========================================================================
   var maxTotalValue = capital * CFG.MAX_TOTAL_ALLOCATION;
-  var valorAlocado = 0;
+  var maxTradeValue = capital * CFG.MAX_TRADE_ALLOCATION;
   var tradesCapados = [];
-  var tradesDescartados = [];
+  var tradesDescartados = [];   // { ticker, motivo }
 
-  for (var j = 0; j < trades.length; j++) {
-    var tj = trades[j];
-    var valorTrade = tj.qtd * tj.preco;
-
-    if (valorTrade <= 0) { continue; }
-
-    if (valorAlocado + valorTrade <= maxTotalValue) {
-      // Cabe integralmente
-      valorAlocado += valorTrade;
-      tradesCapados.push(tj);
+  // Só participam trades com quantidade > 0 (qtd 0 = sizing já não alocou nada)
+  var elegiveis = [];
+  for (var e = 0; e < trades.length; e++) {
+    if (trades[e].qtd > 0 && trades[e].preco > 0) {
+      elegiveis.push(trades[e]);
     } else {
-      // Não cabe: tenta TRIMAR a quantidade para caber no restante
-      var restante = maxTotalValue - valorAlocado;
-      var qtdCabivel = Math.floor(restante / tj.preco);
-      if (qtdCabivel > 0) {
-        tj.qtd = qtdCabivel;
-        tj.alocacao = capital > 0 ? (qtdCabivel * tj.preco) / capital : 0;
-        valorAlocado += qtdCabivel * tj.preco;
-        tradesCapados.push(tj);
-        console.log("   ✂️ [Ranker] " + tj.ticker + ": qtd reduzida para " + qtdCabivel +
-          " (teto agregado de " + (CFG.MAX_TOTAL_ALLOCATION * 100).toFixed(0) + "% do capital)");
-      } else {
-        tradesDescartados.push(tj.ticker);
-      }
+      tradesDescartados.push({ ticker: trades[e].ticker, motivo: 'quantidade nula no position sizing' });
     }
   }
 
+  // Peso = score − 50 (o filtro acima já garante score ≥ 50). Piso 1 evita peso 0.
+  function _pesoScore(t) {
+    var p = (Number(t.score) || 0) - 50;
+    return p > 1 ? p : 1;
+  }
+
+  var alvo = {};            // ticker -> R$ fixado para o trade
+  var vivos = elegiveis.slice();
+  var valorAlocado = 0;
+
+  for (var ciclo = 0; ciclo < 8 && vivos.length > 0; ciclo++) {
+    // Capital deste ciclo = teto agregado menos o que já foi fixado
+    var disponivel = maxTotalValue - valorAlocado;
+    if (disponivel <= 0) break;
+
+    var pendentes = vivos.filter(function (x) { return alvo[x.ticker] === undefined; });
+    if (pendentes.length === 0) break;
+
+    var somaPesosCiclo = 0;
+    for (var c = 0; c < pendentes.length; c++) somaPesosCiclo += _pesoScore(pendentes[c]);
+    if (somaPesosCiclo <= 0) break;
+
+    // FASE 1: simula a distribuição e separa quem NÃO atinge o piso.
+    // (O capital dos descartados ainda não foi consumido, então todos usam a
+    //  mesma base `disponivel` — só os sobreviventes são fixados na FASE 2.)
+    var sobreviventes = [];
+    var descartadosCiclo = [];
+
+    for (var m = 0; m < pendentes.length; m++) {
+      var tv = pendentes[m];
+      var cota = disponivel * (_pesoScore(tv) / somaPesosCiclo);
+      var alvoTrade = Math.min(cota, maxTradeValue);
+
+      var qtdAlvo = Math.floor(alvoTrade / tv.preco);
+      if (qtdAlvo < 1) qtdAlvo = 0;
+
+      // PISO DE UTILIDADE (misto):
+      //   (a) o lote precisa valer ao menos MIN_LOTE_VALUE em R$ — evita
+      //       "posição-token" (R$ 56 em 3 ações) que a corretagem consome;
+      //   (b) EXCEÇÃO: se 1 única ação já vale >= o piso (ativo caro, ex.:
+      //       preço R$ 900), aceita-se a posição — não punir o papel por
+      //       ser caro, apenas registrar que é o mínimo executável.
+      var valorPosicao = qtdAlvo * tv.preco;
+      var ehAtivoCaro = (tv.preco >= CFG.MIN_LOTE_VALUE);
+      var pisoExigido = ehAtivoCaro ? 0 : CFG.MIN_LOTE_VALUE;
+
+      if (qtdAlvo >= 1 && valorPosicao >= pisoExigido) {
+        sobreviventes.push(tv);
+      } else {
+        var motivo = (qtdAlvo < 1)
+          ? 'capital insuficiente (1 ação = R$ ' + tv.preco.toFixed(2) + ' > cota R$ ' + alvoTrade.toFixed(2) + ')'
+          : 'abaixo do piso de utilidade (R$ ' + valorPosicao.toFixed(2) + ' < R$ ' + CFG.MIN_LOTE_VALUE.toFixed(0) + ')';
+        descartadosCiclo.push({ t: tv, motivo: motivo });
+      }
+    }
+
+    // Remove os descartados (o capital deles volta ao pote do próximo ciclo)
+    if (descartadosCiclo.length > 0) {
+      vivos = vivos.filter(function (x) {
+        for (var d = 0; d < descartadosCiclo.length; d++) {
+          if (descartadosCiclo[d].t.ticker === x.ticker) return false;
+        }
+        return true;
+      });
+      for (var dd = 0; dd < descartadosCiclo.length; dd++) {
+        tradesDescartados.push({ ticker: descartadosCiclo[dd].t.ticker, motivo: descartadosCiclo[dd].motivo });
+      }
+      // Houve descarte => repete o ciclo com o capital devolvido
+      continue;
+    }
+
+    // FASE 2: sem descartes, fixa as posições e encerra.
+    // Redistribui a sobra de arredondamento do ciclo anterior entre os vivos.
+    for (var s = 0; s < sobreviventes.length; s++) {
+      var ts = sobreviventes[s];
+      var cotaS = disponivel * (_pesoScore(ts) / somaPesosCiclo);
+      var alvoS = Math.min(cotaS, maxTradeValue);
+      var qtdS = Math.floor(alvoS / ts.preco);
+      alvo[ts.ticker] = qtdS * ts.preco;
+      valorAlocado += alvo[ts.ticker];
+      tradesCapados.push(ts);
+    }
+    break;
+  }
+
+  // Aplica as quantidades finais e RECALCULA risco/alocação (v15.0)
+  for (var f = 0; f < tradesCapados.length; f++) {
+    var tf = tradesCapados[f];
+    var qtdFinal = Math.floor(alvo[tf.ticker] / tf.preco);
+    var qtdOriginal = tf.qtd;
+
+    tf.qtd = qtdFinal;
+    tf.alocacao = capital > 0 ? (qtdFinal * tf.preco) / capital : 0;
+
+    // Risco da posição SEMPRE coerente com a quantidade final (stop < preço garantido)
+    var distStopFinal = tf.preco - tf.stop;
+    tf.riscoRs = (distStopFinal > 0) ? qtdFinal * distStopFinal : 0;
+
+    if (qtdFinal !== qtdOriginal) {
+      console.log("   ✂️ [Ranker] " + tf.ticker + ": qtd " + qtdOriginal + " → " + qtdFinal +
+        " (alocação proporcional ao score; teto agregado de " +
+        (CFG.MAX_TOTAL_ALLOCATION * 100).toFixed(0) + "% do capital)");
+    }
+  }
+
+  // Total efetivo (pode variar por arredondamento de lote)
+  valorAlocado = 0;
+  for (var g = 0; g < tradesCapados.length; g++) {
+    valorAlocado += tradesCapados[g].qtd * tradesCapados[g].preco;
+  }
+
+  // Carteira final na ordem de prioridade da aba (score desc)
+  tradesCapados.sort(function (a, b) { return (Number(b.score) || 0) - (Number(a.score) || 0); });
+
   if (tradesDescartados.length > 0) {
-    console.warn("   ⚠️ [Ranker] " + tradesDescartados.length + " trade(s) descartado(s) por teto agregado: " +
-      tradesDescartados.join(", "));
+    console.warn("   ⚠️ [Ranker] " + tradesDescartados.length +
+      " trade(s) descartado(s) por insuficiência de capital / piso de utilidade:");
+    for (var h = 0; h < tradesDescartados.length; h++) {
+      console.warn("      • " + tradesDescartados[h].ticker + ": " + tradesDescartados[h].motivo);
+    }
+  }
+  if (tradesCapados.length === 0 && trades.length > 0) {
+    console.warn("   ⚠️ [Ranker] Nenhum trade coube no teto agregado de " +
+      (CFG.MAX_TOTAL_ALLOCATION * 100).toFixed(0) + "% (capital R$ " + capital.toFixed(2) + ").");
   }
   console.log("   💼 [Ranker] Alocação total: R$ " + valorAlocado.toFixed(2) +
-    " / R$ " + capital.toFixed(2) + " (" + (capital > 0 ? (valorAlocado / capital * 100).toFixed(1) : 0) +
-    "%) | Trades na carteira: " + tradesCapados.length + "/" + trades.length);
+    " / R$ " + capital.toFixed(2) + " (teto R$ " + maxTotalValue.toFixed(2) + " = " +
+    (CFG.MAX_TOTAL_ALLOCATION * 100).toFixed(0) + "%) | Trades na carteira: " +
+    tradesCapados.length + "/" + trades.length);
 
   trades = tradesCapados;
 
