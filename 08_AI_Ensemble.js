@@ -887,14 +887,23 @@ var AIEnsemble = (function() {
 
     console.log("Ensemble IA: Gemini: " + (gS !== null ? gS.toFixed(1) : "OFF") + " | DeepSeek: " + (dS !== null ? dS.toFixed(1) : "OFF") + " | Consenso IA: " + (scoreIA === null ? "n/a" : scoreIA) + " | (tech ref: " + techScore.toFixed(1) + ")");
 
-    // Validação de Conflito Crítico (Bloqueio)
-    var conflitoBloqueante = false;
-    // Se as duas concordam em direções opostas com força (diff > 40 pontos)
-    // ✅ Ajuste: Aumentar o threshold de conflito para ser menos agressivo em BEARISH
+    // =====================================================================
+    // Validação de Conflito Crítico (diagnóstico, NÃO veta ativo)
+    // ---------------------------------------------------------------------
+    // 🔧 v10.5 (correção): este bloco marcava `conflitoBloqueante = true`, o
+    // que zera `rejected`. Porém o Sentinela NÃO consome o Ensemble em lote —
+    // cada ativo é reavaliado pelo seu próprio DecisionEngine (35→36→34), que
+    // lê apenas `aiScore`. Resultado: 26 avisos "Vetando operação" por run
+    // enquanto ITUB4/BBAS3/HYPE3/SAPR11 eram aprovados com score 100 — log
+    // mentindo sobre uma decisão que nunca era aplicada.
+    // A divergência já é punida de forma EFETIVA no bloco de penalização
+    // abaixo (iaConsenso *= 0.85/0.90/0.95), que é o que propaga para o score.
+    // Aqui só registramos o tamanho do conflito para auditoria.
     var currentDiscordThreshold = (macroRegimeEfetivo === "BEARISH" && techScore >= 70) ? 50 : (CONFIG_ENSEMBLE.DISCORD_THRESHOLD * 100);
-    if (gS !== null && dS !== null && diff > currentDiscordThreshold) {
-      console.warn("🚨 [AIEnsemble] Conflito extremo de convicção detectado. Vetando operação.");
-      conflitoBloqueante = true;
+    var conflitoDivergente = (gS !== null && dS !== null && diff > currentDiscordThreshold);
+    if (conflitoDivergente) {
+      console.warn("🚨 [AIEnsemble] Conflito extremo de convicção: divergência " + diff.toFixed(1) +
+        " > " + currentDiscordThreshold + " | penalidade de consenso será aplicada (sem veto próprio)");
     }
 
     // ==============================
@@ -908,9 +917,11 @@ var AIEnsemble = (function() {
     // Ex. real (log 25/10): Gemini 82 / DeepSeek 35 → diff 47 → penalidade 0.85
     // descartada → ai_score=73 chegou intacto ao Sentinela, que aprovou com 100.
     // Agora a penalidade é aplicada no PRÓPRIO consenso, único ponto que propaga.
+    //
+    // 🔧 v10.5: `diff` já foi calculado acima (linha do `var diff`), então NÃO
+    // redeclare aqui — a redeclaração mascarava o valor e deixava o código
+    // visualmente duplicado.
     if (gS !== null && dS !== null) {
-  var diff = Math.abs(gS - dS);
-
       if (diff > 35) {
         console.warn("🚨 Divergência forte entre IAs: " + diff.toFixed(1));
         iaConsenso *= 0.85; // penalização forte por falta de consenso
@@ -918,19 +929,19 @@ var AIEnsemble = (function() {
         console.warn("⚠️ Divergência moderada entre IAs: " + diff.toFixed(1));
         // ✅ CORREÇÃO: Penalidade menos severa se em regime BEARISH e score técnico alto
         if (macroRegimeEfetivo === "BEARISH" && techScore >= 70) {
-            iaConsenso *= 0.95; // Penalidade reduzida
+          iaConsenso *= 0.95; // Penalidade reduzida
         } else {
-            iaConsenso *= 0.90; // Penalidade padrão
+          iaConsenso *= 0.90; // Penalidade padrão
         }
-  }
-  // Reflete o consenso penalizado no score final (mesma fonte usada no return).
-  // 🔧 v10.4: `scoreIA` (o `aiScore` do retorno, consumido por 36_ → 34_ → ScorePolicy)
-  // foi calculado na linha acima ANTES desta penalização. Recalcula para que a
-  // punição por divergência chegue, de fato, ao score publicado.
-  finalScore = iaConsenso;
-  scoreIA = Math.max(0, Math.min(100, Math.round(iaConsenso)));
-  console.log("🔧 [AIEnsemble] Consenso penalizado por divergência: " + Math.round(finalScore) + " (aiScore=" + scoreIA + ")");
-}
+      }
+      // Reflete o consenso penalizado no score final (mesma fonte usada no return).
+      // 🔧 v10.4: `scoreIA` (o `aiScore` do retorno, consumido por 36_ → 34_ → ScorePolicy)
+      // foi calculado ANTES desta penalização. Recalcula para que a punição por
+      // divergência chegue, de fato, ao score publicado.
+      finalScore = iaConsenso;
+      scoreIA = Math.max(0, Math.min(100, Math.round(iaConsenso)));
+      console.log("🔧 [AIEnsemble] Consenso penalizado por divergência: " + Math.round(finalScore) + " (aiScore=" + scoreIA + ")");
+    }
 
 
     // Regra de Threshold Operacional
@@ -939,10 +950,13 @@ var AIEnsemble = (function() {
     var threshold = (macroRegimeEfetivo === "BEARISH" ? CONFIG_ENSEMBLE.MIN_SCORE_BEARISH : CONFIG_ENSEMBLE.MIN_SCORE_DEFAULT) * 100;
     threshold = Math.min(threshold, CONF.SCORE_MINIMO_APROVACAO);
     
-    var rejected = finalScore < threshold || conflitoBloqueante;
+    // 🔧 v10.5: `conflitoDivergente` NÃO entra no gate. Quem decide o trade é o
+    // Sentinela (DecisionEngine #34), que não enxerga este `rejected`; vetar aqui
+    // só produzia log enganoso. A punição por divergência já está no `iaConsenso`.
+    var rejected = finalScore < threshold;
     
     if (rejected) {
-      var motivoRejeicao = conflitoBloqueante ? "Conflito crítico de inteligências" : "Score " + Math.round(finalScore) + " abaixo do limite " + Math.round(threshold);
+      var motivoRejeicao = "Score " + Math.round(finalScore) + " abaixo do limite " + Math.round(threshold);
       
       return {
         finalScore: Math.round(finalScore),
