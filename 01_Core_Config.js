@@ -98,11 +98,13 @@ var CONFIG = (function() {
     RANKER_MAX_TRADE_ALLOCATION: 0.25,
     RANKER_MAX_TOTAL_ALLOCATION: 0.95,
     // 🔧 v15.0: PISO DE UTILIDADE do lote (evita "posição-token", ex.: qtd=1).
-    // Um trade cujo valor fique abaixo do piso é DESCARTADO (o capital dele é
-    // redistribuído entre os demais), pois corretagem/B3 consumiriam o ganho.
-    // Critério MISTO: o MENOR entre o piso em R$ e o percentual da alocação-alvo
-    // do trade — assim um ativo caro (preço alto) não é punido duas vezes.
+    // Um trade cujo lote fique abaixo de RANKER_MIN_LOTE_VALUE é DESCARTADO
+    // (o capital dele é redistribuído entre os demais), pois corretagem/B3
+    // consumiriam o ganho.
+    // EXCEÇÃO: ativo cujo PREÇO unitário já supera o piso (papel caro) é aceito
+    // com a quantidade mínima executável — não punir o ativo por ser caro.
     RANKER_MIN_LOTE_VALUE: 500,
+    // Reservado para piso relativo em cenários de capital muito fracionado.
     RANKER_MIN_LOTE_PCT: 0.10,
     // 🔧 v12.8/v13.4: Convivência da coluna "Cotação Atual" (H) da aba Carteira.
     // 'auto'   = se detectar fórmula na coluna, o robô NÃO a sobrescreve.
