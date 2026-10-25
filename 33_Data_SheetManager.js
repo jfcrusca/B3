@@ -2,7 +2,106 @@
 
 var SheetManager = {
 
-  // ... (funções getTickers e cleanupOldSheets permanecem iguais)
+  /**
+   * Lê a lista de tickers da aba 'Tickers'.
+   *
+   * 🔧 v10.1 (CORREÇÃO): esta função havia sido substituída por um comentário
+   * ("funções getTickers e cleanupOldSheets permanecem iguais") e nunca foi
+   * reimplementada. Qualquer módulo que chamasse SheetManager.getTickers()
+   * lançava "SheetManager.getTickers is not a function".
+   *
+   * Comportamento: varre TODAS as colunas de cada linha e usa o primeiro valor
+   * que case com o padrão de ticker da B3 (4 letras + 1-2 dígitos), sem supor
+   * que a coluna seja a A ou a G (a aba evoluiu e há colunas de apoio).
+   *
+   * @param {string} [sheetName='Tickers'] Nome da aba de origem.
+   * @returns {Array<string>} Tickers únicos em maiúsculas, na ordem da planilha.
+   */
+  getTickers: function(sheetName) {
+    var nomeAba = sheetName || 'Tickers';
+    var tickers = [];
+    try {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      if (!ss) return tickers;
+      var sh = ss.getSheetByName(nomeAba);
+      if (!sh) {
+        console.warn('[SheetManager] Aba "' + nomeAba + '" não encontrada.');
+        return tickers;
+      }
+
+      var lastRow = sh.getLastRow();
+      var lastCol = sh.getLastColumn();
+      if (lastRow < 2 || lastCol < 1) return tickers;
+
+      // Leitura em lote único (regra do projeto: nunca getValue dentro de loop).
+      var vals = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+      var vistos = {};
+      var padraoTicker = /^[A-Z]{4}\d{1,2}$/;
+
+      for (var r = 0; r < vals.length; r++) {
+        for (var c = 0; c < vals[r].length; c++) {
+          var t = String(vals[r][c] == null ? '' : vals[r][c]).trim().toUpperCase();
+          if (t && padraoTicker.test(t) && !vistos[t]) {
+            vistos[t] = true;
+            tickers.push(t);
+            break; // achou o ticker desta linha; passa para a próxima
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[SheetManager] Falha ao ler tickers da aba "' + nomeAba + '": ' + e.message);
+    }
+    return tickers;
+  },
+
+  /**
+   * Remove abas antigas de saída cujo nome contenha um dos padrões informados.
+   *
+   * 🔧 v10.1: reimplementada junto com getTickers (o marcador "permanecem
+   * iguais" deixou ambas de existir). Mantida conservadora: só apaga abas que
+   * casem com os padrões e nunca a aba ativa. A lista de abas é lida em uma
+   * única chamada, antes do loop.
+   *
+   * @param {Array<string>} [padroes] Substrings (case-insensitive) dos nomes a remover.
+   * @param {number} [manterUltimas=0] Quantas das abas encontradas preservar.
+   * @returns {number} Quantidade de abas removidas.
+   */
+  cleanupOldSheets: function(padroes, manterUltimas) {
+    var listaPadroes = padroes || ['Backtest_', 'Temp_', 'Simulacao_Old'];
+    var manter = parseInt(manterUltimas, 10);
+    if (isNaN(manter) || manter < 0) manter = 0;
+
+    var removidas = 0;
+    try {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      if (!ss) return 0;
+      var ativa = ss.getActiveSheet();
+      var abas = ss.getSheets();
+      var alvos = [];
+
+      for (var i = 0; i < abas.length; i++) {
+        var nome = abas[i].getName();
+        var casa = false;
+        for (var p = 0; p < listaPadroes.length; p++) {
+          var pad = String(listaPadroes[p] || '');
+          if (pad && nome.toLowerCase().indexOf(pad.toLowerCase()) !== -1) { casa = true; break; }
+        }
+        if (casa) alvos.push(abas[i]);
+      }
+
+      // Preserva as últimas N abas encontradas
+      if (manter > 0) alvos = alvos.slice(0, Math.max(0, alvos.length - manter));
+
+      for (var k = 0; k < alvos.length; k++) {
+        if (alvos[k].getSheetId() === ativa.getSheetId()) continue; // nunca apaga a aba ativa
+        try { ss.deleteSheet(alvos[k]); removidas++; } catch (e2) { /* ignora */ }
+      }
+      if (removidas > 0) console.log('[SheetManager] ' + removidas + ' aba(s) antiga(s) removida(s).');
+    } catch (e) {
+      console.error('[SheetManager] Falha em cleanupOldSheets: ' + e.message);
+    }
+    return removidas;
+  },
 
   appendToSheet: function(sheetName, data) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -13,7 +112,9 @@ var SheetManager = {
 
     // --- DETETIVE DE DADOS ---
     // Esta parte garante que pegamos o valor certo, mesmo com nomes diferentes
-    const processedData = data.map(row => {
+    // 🔧 v10.1: o callback recebe (row, i) — antes referenciava `i` sem recebê-lo,
+    // o que lançava "i is not defined" na primeira linha em modo estrito.
+    const processedData = data.map((row, i) => {
       const findVal = (options) => {
         const key = Object.keys(row).find(k => options.includes(k.trim()));
         return key ? row[key] : null;

@@ -128,7 +128,10 @@ function diagnosticoCompleto() {
     // 2. VERIFICAÇÃO DE ABAS
     console.log('\n📊 VERIFICAÇÃO DE ABAS:');
     const sheets = ss.getSheets();
-    const requiredSheets = ['Tickers', 'Dashboard', 'Resultados_Analise', 'Oportunidades', 'Carteira', 'Portfolio'];
+    // 🔧 v10.1: 'Portfolio' foi removida — a aba não existe no sistema (o
+    // portfolio real vive em 'Carteira'). 'Tickers' sem acento e 'Configurações'
+    // com acento, exatamente como criadas por 00_Setup_CreateSheets.
+    const requiredSheets = ['Tickers', 'Dashboard', 'Resultados_Analise', 'Oportunidades', 'Carteira'];
     
     sheets.forEach(sh => {
       const nome = sh.getName();
@@ -164,14 +167,21 @@ function diagnosticoCompleto() {
   }
     
     // 4. VERIFICAÇÃO DE TICKERS
+    // 🔧 v10.1: usa o helper resiliente — getTickers() pode não existir se o
+    // módulo SheetManager regredir, e a mensagem deve distinguir "módulo
+    // ausente" de "planilha sem tickers".
     console.log('\n📈 VERIFICAÇÃO DE TICKERS:');
+    let tickersApurados = [];
     try {
-      if (typeof SheetManager !== 'undefined') {
+      if (typeof SheetManager !== 'undefined' && typeof SheetManager.getTickers === 'function') {
         const tickers = SheetManager.getTickers();
+        tickersApurados = tickers;
         console.log(`  Total: ${tickers.length} tickers`);
         console.log(`  Amostra: ${tickers.slice(0, 5).join(', ')}${tickers.length > 5 ? '...' : ''}`);
-      } else {
+      } else if (typeof SheetManager === 'undefined') {
         console.log('  SheetManager: ❌ Não carregado');
+      } else {
+        console.log('  SheetManager.getTickers: ❌ Função ausente no módulo');
       }
     } catch (e) {
       console.log(`  Tickers: ⚠️ Erro: ${e.message}`);
@@ -257,9 +267,14 @@ function diagnosticoCompleto() {
       console.log('  • Configure a chave da API Gemini em Propriedades do Script');
     }
     
-    const tickers = (typeof SheetManager !== 'undefined' && SheetManager.getTickers) ? SheetManager.getTickers() : [];
-    if (tickers.length === 0) {
-      console.log('  • Adicione tickers na aba "Tickers" (coluna G)');
+    // 🔧 v10.1: recomendações baseadas em FATOS apurados acima, não em nova
+    // leitura da planilha. Antes o aviso "adicione tickers" disparava mesmo com
+    // a aba cheia, porque getTickers() inexistente devolvia [] silenciosamente.
+    const totalTickers = tickersApurados.length;
+    if (totalTickers === 0) {
+      console.log('  • Aba "Tickers" vazia ou sem ativos válidos — cadastre tickers (ex.: PETR4, VALE3)');
+    } else {
+      console.log(`  • ✅ ${totalTickers} tickers cadastrados — nada a corrigir aqui`);
     }
 
     const sheetsMap = sheets.map(sh => sh.getName());
@@ -269,23 +284,23 @@ function diagnosticoCompleto() {
     
     console.log('\n✅ DIAGNÓSTICO COMPLETO FINALIZADO');
     
-    // Retorna para UI
-    const ui = SpreadsheetApp.getUi();
-    ui.alert(
+    // Retorna para UI — 🔧 v10.1: usa b3UiAlert (tolerante à ausência de interface).
+    // SpreadsheetApp.getUi() lança "Cannot call SpreadsheetApp.getUi() from this
+    // context" quando a função roda do editor/depurador ou em background.
+    b3UiAlert(
       'Diagnóstico Completo',
-      `Diagnóstico executado com sucesso!\n\nVerifique o console (Ctrl+Enter) para detalhes.`,
-      ui.ButtonSet.OK
+      'Diagnóstico executado com sucesso!\n\nVerifique o console (Ctrl+Enter) para detalhes.'
     );
     
   } catch (error) {
     console.error(`❌ ERRO NO DIAGNÓSTICO: ${error.message}`);
     console.error(error.stack);
     
-    const ui = SpreadsheetApp.getUi();
-    ui.alert(
+    // 🔧 v10.1: b3UiAlert em vez de getUi() — o catch original relançava uma
+    // segunda exceção e mascarava o erro real no registro de execução.
+    b3UiAlert(
       'Erro no Diagnóstico',
-      `Ocorreu um erro:\n\n${error.message}`,
-      ui.ButtonSet.OK
+      `Ocorreu um erro:\n\n${error.message}`
     );
   }
 }
