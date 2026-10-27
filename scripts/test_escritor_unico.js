@@ -147,18 +147,20 @@ check('Linha INCONSISTENTE (caso BPAC11 original) e detectada',
   linhaAutoConsistente(53.98, 78.52, 61.67), false);
 
 // ===========================================================================
-titulo('TESTE 7 — Layout 27 colunas consistente em TODO o pipeline');
+titulo('TESTE 7 — Layout 31 colunas consistente em TODO o pipeline');
 
 // 🔧 v13.3: o bug do log de produção era a constante NUM_COLS_TO_PAINT = 26
 // enquanto a matriz de cores tinha 27. Isso derrubava a gravação INTEIRA de
 // 'Resultados_Analise' (o setBackgrounds lançava e o setValues anterior já
 // havia sido feito, mas erros subsequentes abortavam o fluxo).
+// 🔧 v15.3: 27 → 28 (coluna 'Suporte (Pivô)').
+// 🔧 v15.4: 28 → 31 (diagnóstico do rompimento do suporte).
 check('NUM_COLS_TO_PAINT NAO esta mais hardcoded em 26',
   /NUM_COLS_TO_PAINT\s*=\s*26\s*;/.test(src08), false);
 check('NUM_COLS_TO_PAINT deriva de OutputConfig.NUM_COLS',
   /NUM_COLS_TO_PAINT\s*=\s*OutputConfig\.NUM_COLS/.test(src08), true);
-check('OutputConfig.NUM_COLS = 27',
-  /NUM_COLS:\s*27/.test(src08), true);
+check('OutputConfig.NUM_COLS = 31',
+  /NUM_COLS:\s*31/.test(src08), true);
 
 // A matriz de cores deve usar a MESMA constante do range (nunca NUM_COLS solto)
 check('Matriz de cores usa NUM_COLS_TO_PAINT',
@@ -180,27 +182,39 @@ check('_ensureSheet NAO usa appendRow (ignorando comentarios)',
 check('_ensureSheet grava cabecalho na LINHA 1',
   /getRange\(1,\s*1,\s*1,\s*OutputConfig\.HEADERS\.length\)\.setValues/.test(src08), true);
 
-// Contagem real do array de headers deve ser 27
+// Contagem real do array de headers deve ser 31.
+// 🔧 v15.3: os comentários do array citam nomes de coluna entre apóstrofos
+// (ex.: 'Suporte (Pivô)'), o que inflava a contagem. Removemos as linhas de
+// comentário ANTES de contar as strings.
 var mHeaders = src08.match(/HEADERS:\s*\[([\s\S]*?)\]/);
-var qtdHeaders = mHeaders ? (mHeaders[1].match(/'/g) || []).length / 2 : 0;
+var corpoHeaders = mHeaders
+  ? mHeaders[1].split('\n')
+    .filter(function (l) { return l.trim().indexOf('//') !== 0; })
+    .join('\n')
+  : '';
+var qtdHeaders = (corpoHeaders.match(/'/g) || []).length / 2;
 console.log('  HEADERS[] em 08_Output_Unified = ' + qtdHeaders + ' colunas');
-check('HEADERS tem 27 colunas', qtdHeaders, 27);
+check('HEADERS tem 31 colunas', qtdHeaders, 31);
 
-// A linha retornada por _toRow deve ter 27 posicoes.
-// Os índices vão de 0 a 26 (27 posições) — validamos que o MAIOR índice é 26.
+// A linha retornada por _toRow deve ter 31 posicoes.
+// Os índices vão de 0 a 30 (31 posições) — validamos que o MAIOR índice é 30.
+// 🔧 v15.3: o regex antigo (/\s*(\d+):/) capturava qualquer "N:" do arquivo,
+// incluindo números soltos em comentários (ex.: "NUM_COLS (27)" não, mas
+// " 27: " dentro de texto sim). Ancoramos no padrão de comentário de índice
+// usado nas linhas de `_toRow`: "  // 27: descricao".
 var indicesComentados = [];
-var reIdx = /\/\/\s*(\d+):/g;
+var reIdx = /\/\/\s*(\d+):\s/g;
 var mIdx;
 while ((mIdx = reIdx.exec(src08)) !== null) {
   indicesComentados.push(parseInt(mIdx[1], 10));
 }
 var maiorIndice = indicesComentados.length ? Math.max.apply(null, indicesComentados) : -1;
-var menores = indicesComentados.filter(function (n) { return n < 27; });
+var menores = indicesComentados.filter(function (n) { return n < 31; });
 console.log('  _toRow: indices ' + Math.min.apply(null, menores) + '..' + maiorIndice +
   ' (' + menores.length + ' posicoes com comentario de indice)');
-check('Maior indice de coluna em _toRow = 26 (=> 27 colunas)', maiorIndice, 26);
-check('Todos os 27 indices (0..26) presentes',
-  menores.length >= 27 || (new Set(menores)).size === 27, true);
+check('Maior indice de coluna em _toRow = 30 (=> 31 colunas)', maiorIndice, 30);
+check('Todos os 31 indices (0..30) presentes',
+  menores.length >= 31 || (new Set(menores)).size === 31, true);
 
 // ===========================================================================
 console.log('\n=============================================================');

@@ -262,6 +262,32 @@ function STRATEGY_EVALUATE_CORE(data, ibovContext) {
     topo50: parseFloat((estrutura.h50 || 0).toFixed(2)),
     ganhoRapidoPct: estrutura.ganhoRapidoPct || 0,
     distTopoPct: estrutura.distTopoPct || 0,
+    // 🔧 v15.3: ÚLTIMO PIVÔ DE FUNDO (SUPORTE ESTRUTURAL).
+    // -----------------------------------------------------------------------
+    // `estrutura.swingLow` era calculado em _analisarEstruturaMercado (linha
+    // ~367) desde sempre, mas nunca era lido por nenhum consumidor — campo
+    // morto. Exportado na RAIZ para poder viajar até o 29_Oportunidades, onde
+    // valida se o pullback Fibo tem respaldo estrutural ("Suporte vs. Zona").
+    // Fica 0 quando não há pivô algum (nunca null) para simplificar o
+    // tratamento nas planilhas.
+    swingLow: parseFloat((estrutura.swingLow || 0).toFixed(2)),
+    // 🔧 v15.3: DIAGNÓSTICO DO ROMPIMENTO DO SUPORTE.
+    // -----------------------------------------------------------------------
+    // Responde: o pivô acima já foi perdido? Com volume de quebra ou de
+    // varredura? Houve recuperação? Sem isso, "pivô acima da zona" é ambíguo —
+    // tanto pode ser pullback sadio quanto reversão. Campos:
+    //   rompido         (bool)   fechamento atual < pivô
+    //   volRompimento   (number) maior vol. relativo entre os candles que
+    //                            fecharam abaixo do pivô (null = sem medição)
+    //   recuperou       (bool)   algum fechamento voltou acima do pivô depois
+    //                            do candle de maior volume na quebra
+    //   desdeRompimento (number) candles desde a confirmação do pivô
+    // Viaja achatado (não como objeto) porque o SheetWriter serializa cada
+    // campo em uma coluna; objeto viraria "[object Object]".
+    suporteRompido: !!(estrutura.rompimentoSuporte && estrutura.rompimentoSuporte.rompido),
+    volRompimentoSuporte: (estrutura.rompimentoSuporte && estrutura.rompimentoSuporte.volRompimento != null)
+      ? estrutura.rompimentoSuporte.volRompimento : null,
+    suporteRecuperou: !!(estrutura.rompimentoSuporte && estrutura.rompimentoSuporte.recuperou),
     // 🔧 v13.2: Força Relativa vs. benchmark (BOVA11) — percentual 21d.
     retorno21d: estrutura.retorno21d || 0,
     forcaRelativa: (ibovContext && typeof ibovContext.benchmarkReturn21d === 'number')
@@ -365,6 +391,23 @@ function _analisarEstruturaMercado(ctx, preco, ind, candles) {
   var temConfluencia = inFiboZone &&
     (distEMA21 <= CORE22_CFG.confluenceMaxDist || distEMA50 <= CORE22_CFG.confluenceMaxDist);
   var swingLow = _core_getLastPivotLow(candles);
+
+  // 🔧 v15.3 — ROMPIMENTO DO SUPORTE (volume + recuperação).
+  // O `swingLow` acima só entrega o PREÇO do pivô. Para julgar se a quebra foi
+  // varredura de liquidez ou reversão, precisamos do ÍNDICE do pivô (para saber
+  // QUAIS candles tentaram furar o nível) e do volume desses candles. Como os
+  // candles não atravessam o pipeline (só o objeto `analise` é gravado), o
+  // cálculo tem de acontecer aqui, onde a série ainda está na mão.
+  var rompimentoSuporte = null;
+  try {
+    var idxPivoSwing = _core_getLastPivotLowIndex(candles);
+    if (idxPivoSwing >= 0 && swingLow != null) {
+      rompimentoSuporte = _core_analisarRompimentoSuporte(candles, idxPivoSwing, swingLow);
+    }
+  } catch (eRomP) {
+    console.warn("⚠️ [Core22] Falha ao analisar rompimento do suporte: " + eRomP.message);
+    rompimentoSuporte = null;
+  }
   
   // 🔧 CORREÇÃO v10.2: GANHO RÁPIDO ACUMULADO (lookback 10 candles)
   // Detecta movimento acelerado (ex: +12% pós-resultado) — subida vertical curta
@@ -398,6 +441,8 @@ function _analisarEstruturaMercado(ctx, preco, ind, candles) {
     inFiboZone: inFiboZone,
     temConfluencia: temConfluencia,
     swingLow: (swingLow != null ? swingLow : l50),
+    // 🔧 v15.3: diagnóstico do rompimento do pivô (ver _core_analisarRompimentoSuporte).
+    rompimentoSuporte: rompimentoSuporte,
     ganhoRapidoPct: parseFloat(ganhoRapidoPct.toFixed(4)),
     distTopoPct: h50 > 0 ? parseFloat(((h50 - preco) / h50).toFixed(4)) : 0,
     retorno21d: parseFloat(retorno21d.toFixed(4)), // 🔧 v13.2: força relativa
@@ -1341,6 +1386,145 @@ function _core_detectPivotLows(candles, leftBars, rightBars) {
     if (ok) pivots.push({ index: i, price: low });
   }
   return pivots;
+}
+
+/**
+ * 🔧 v15.3 — ANÁLISE DO ROMPIMENTO DO SUPORTE (volume + recuperação).
+ *
+ * CONTEXTO DE MERCADO
+ * Quando o último pivô de fundo (suporte vigente) está ACIMA da zona Fibonacci,
+ * comprar no Fibo significa comprar DEPOIS de o suporte ter sido perdido. Isso
+ * é legítimo em um único cenário: a "varredura de liquidez" (stop hunt) — o
+ * preço fura o fundo com volume BAIXO, coleta os stops, e recupera o nível
+ * rapidamente. Aí o pullback Fibo continua válido (o fundo foi violado no
+ * preço, não na estrutura).
+ *
+ * Se o rompimento vem COM VOLUME e sem recuperação, a leitura muda: não é
+ * pullback, é REVERSÃO. Comprar no Fibo seria comprar na queda.
+ *
+ * COMO MEDIMOS (sem depender de dados futuros)
+ * Tudo é calculado sobre candles JÁ FECHADOS — nada de candle em formação:
+ *   • `desdeRompimento` = candles após o pivô. Ignoramos os `pivotRightBars`
+ *     (2) que o detector exige para CONFIRMAR o pivô: nesse intervalo o preço
+ *     ainda não "sabia" que ali era um fundo.
+ *   • `rompido` = o fechamento mais recente está abaixo do pivô.
+ *   • `volRompimento` = MAIOR volume relativo entre os candles pós-confirmação
+ *     que fecharam abaixo do pivô. Usar o MÁXIMO (e não a média) é deliberado:
+ *     queremos o pior caso da quebra. Volume em quebra normalmente concentra-se
+ *     em 1-2 candles — a média diluiria justamente o candle que importa.
+ *   • `volRelativo` de cada candle = volume / mediana dos 20 anteriores
+ *     (mesma base robusta de `_core_getVolumeRelativo`, que usa mediana para
+ *     não ser contaminada por outliers de provedor).
+ *   • `recuperou` = depois do candle de maior volume na quebra, algum
+ *     fechamento voltou acima do pivô.
+ *
+ * @param {Array<Object>} candles série OHLC (a mesma já usada no Core22)
+ * @param {number} idxPivo índice do pivô na série completa
+ * @param {number} precoPivo preço do pivô (nível de suporte)
+ * @return {?Object} diagnóstico, ou null se janela insuficiente
+ */
+function _core_analisarRompimentoSuporte(candles, idxPivo, precoPivo) {
+  if (!candles || !(candles.length > 0)) return null;
+  if (!(idxPivo >= 0) || idxPivo >= candles.length) return null;
+  if (!(precoPivo > 0)) return null;
+
+  var volBase = 20;                              // janela da mediana de volume
+  var confirmacao = CORE22_CFG.pivotRightBars || 2;
+  var inicio = idxPivo + confirmacao;            // 1º candle pós-confirmação
+
+  if (inicio >= candles.length) {
+    // O pivô é recente demais: não houve tempo hábil para romper nada.
+    return {
+      desdeRompimento: 0,
+      rompido: false,
+      volRompimento: null,
+      recuperou: false,
+      fechamentoMaisBaixo: null,
+      precoPivo: parseFloat(precoPivo.toFixed(2)),
+      status: 'SEM_ROMPIMENTO'
+    };
+  }
+
+  function volRelativoDe(i) {
+    var de = Math.max(0, i - volBase);
+    var base = [];
+    for (var k = de; k < i; k++) {
+      var v = Number(candles[k].volume || 0);
+      if (v > 0) base.push(v);
+    }
+    if (base.length < 5) return null;            // base estatística fraca
+    base.sort(function (a, b) { return a - b; });
+    var meio = Math.floor(base.length / 2);
+    var mediana = (base.length % 2 === 0)
+      ? (base[meio - 1] + base[meio]) / 2
+      : base[meio];
+    if (!(mediana > 0)) return null;
+    var hoje = Number(candles[i].volume || 0);
+    if (!(hoje > 0)) return null;
+    return hoje / mediana;
+  }
+
+  var idxQuebraVolMax = -1;
+  var volMax = null;
+  var fechamentoMaisBaixo = null;
+
+  for (var i = inicio; i < candles.length; i++) {
+    var fech = Number(candles[i].close);
+    if (!(fech > 0)) continue;
+    if (fech >= precoPivo) continue;             // não fechou abaixo: sem quebra
+
+    if (fechamentoMaisBaixo === null || fech < fechamentoMaisBaixo) {
+      fechamentoMaisBaixo = fech;
+    }
+    var vr = volRelativoDe(i);
+    if (vr !== null && (volMax === null || vr > volMax)) {
+      volMax = vr;
+      idxQuebraVolMax = i;
+    }
+  }
+
+  var ultimoFech = Number(candles[candles.length - 1].close) || 0;
+  var rompido = (ultimoFech > 0) && (ultimoFech < precoPivo);
+
+  // Recuperação: só faz sentido olhar DEPOIS do candle de maior volume na
+  // quebra — é ele que representa o teste real do nível.
+  var recuperou = false;
+  if (idxQuebraVolMax >= 0) {
+    for (var j = idxQuebraVolMax + 1; j < candles.length; j++) {
+      var f = Number(candles[j].close) || 0;
+      if (f > precoPivo) { recuperou = true; break; }
+    }
+  }
+
+  return {
+    desdeRompimento: candles.length - inicio,
+    rompido: rompido,
+    volRompimento: (volMax === null) ? null : parseFloat(volMax.toFixed(2)),
+    recuperou: recuperou,
+    fechamentoMaisBaixo: (fechamentoMaisBaixo === null)
+      ? null : parseFloat(fechamentoMaisBaixo.toFixed(2)),
+    precoPivo: parseFloat(precoPivo.toFixed(2)),
+    status: rompido ? 'ROMPIDO' : 'NAO_ROMPIDO'
+  };
+}
+
+/**
+ * 🔧 v15.3 — ÍNDICE do último pivô de fundo na série COMPLETA.
+ *
+ * Espelha a janela de `_core_getLastPivotLow` (mesmo lookback e mesmos
+ * leftBars/rightBars), mas devolve a posição em vez do preço, para que o
+ * rompimento possa ser auditado candle a candle. Retorna -1 quando não há pivô.
+ */
+function _core_getLastPivotLowIndex(candles, lookback, leftBars, rightBars) {
+  lookback = lookback || CORE22_CFG.swingLookback;
+  leftBars = leftBars || CORE22_CFG.pivotLeftBars;
+  rightBars = rightBars || CORE22_CFG.pivotRightBars;
+  if (!candles || candles.length < 10) return -1;
+  var start = Math.max(0, candles.length - lookback);
+  var slice = candles.slice(start);
+  var pivots = _core_detectPivotLows(slice, leftBars, rightBars);
+  if (!pivots.length) return -1;
+  return start + pivots[pivots.length - 1].index;
 }
 
 function _core_getLastPivotLow(candles, lookback, leftBars, rightBars) {

@@ -11,7 +11,7 @@
 
 const OutputConfig = {
   SHEET_NAME: 'Resultados_Analise',
-  NUM_COLS: 27, // 🔧 v13.2: 26 → 27 (nova coluna "Força Rel. %")
+  NUM_COLS: 31, // 🔧 v15.3: 28 → 31 (diagnóstico do rompimento do suporte)
   HEADERS: [
     'Data', 'Ticker', 'Preço', 'Score', 'Setup', 'Motivo', 'Stop Loss', 
     'Alvo 1', 'Alvo 2', 'R/R', 'Risco %', 'RSI', 'EMA21', 'EMA50', 'EMA200', 
@@ -20,7 +20,21 @@ const OutputConfig = {
     // 🔧 CORREÇÃO v10.2: Novas métricas de "perto do topo"
     'Topo50', 'GanhoRapido%', 'DistTopo%',
     // 🔧 v13.2: Força Relativa vs. benchmark (BOVA11) em % (21d)
-    'Força Rel. %'
+    'Força Rel. %',
+    // 🔧 v15.3: Último pivô de fundo (swingLow) — suporte estrutural.
+    // ATENÇÃO: NÃO confundir com a coluna 'Pivot' (18), que é o pivot point
+    // clássico (H+L+C)/3 e não representa suporte algum. Esta é a mínima local
+    // detectada por _core_getLastPivotLow, usada para validar o pullback Fibo.
+    'Suporte (Pivô)',
+    // 🔧 v15.3: DIAGNÓSTICO DO ROMPIMENTO DO SUPORTE.
+    // Separa "varredura de liquidez" (quebra seca + recuperação rápida = pullback
+    // ainda válido) de "reversão" (quebra com volume = tendência virou).
+    // Calculado no 22_Core, onde os candles ainda existem — o volume do candle
+    // da quebra não é derivável depois, na planilha. Ver sufixo '?' na coluna
+    // VOLUME: a marca indica ausência de base estatística (não é 0).
+    'Suporte Rompido?',      // bool: fechamento atual abaixo do pivô
+    'Vol. Rompimento (x)',   // maior vol. relativo entre os candles de quebra
+    'Recuperou Suporte?'     // bool: voltou a fechar acima do pivô após a quebra
   ]
 };
 
@@ -431,8 +445,29 @@ const OutputManager = (function () {
   var forcaRelativa = (op.forcaRelativa !== undefined && op.forcaRelativa !== null)
     ? parseFloat((op.forcaRelativa * 100).toFixed(2)) : '';
 
+  // 🔧 v15.3: SUPORTE ESTRUTURAL (último pivô de fundo).
+  // Vem de `resultado.swingLow` (raiz do retorno do 22_Core_Analyzers).
+  // 0 / undefined => sem pivô detectado; gravamos '' para a célula ficar limpa
+  // em vez de exibir "0,00", que seria confundido com um preço real.
+  var suportePivo = (op.swingLow !== undefined && op.swingLow !== null && Number(op.swingLow) > 0)
+    ? parseFloat(Number(op.swingLow).toFixed(2)) : '';
+
+  // 🔧 v15.3: DIAGNÓSTICO DO ROMPIMENTO DO SUPORTE.
+  // Reflete `rompimentoSuporte` do 22_Core. Aqui só formatamos — nenhum cálculo
+  // de volume acontece nesta camada (os candles já não existem mais).
+  // 'SIM' / 'NÃO' em texto (e não true/false) para a planilha ficar legível e
+  // sobreviver a filtros/ordenação sem virar booleano silencioso.
+  var suporteRompidoTxt = (op.suporteRompido === true) ? 'SIM'
+    : (op.suporteRompido === false) ? 'NÃO' : '';
+  // null => sem base estatística (pivô recente, poucos candles ou volume
+  // ausente no provedor). Gravar '' evita que o leitor interprete como 0,00x.
+  var volRompimentoSuporte = (op.volRompimentoSuporte != null && Number(op.volRompimentoSuporte) > 0)
+    ? parseFloat(Number(op.volRompimentoSuporte).toFixed(2)) : '';
+  var suporteRecuperouTxt = (op.suporteRecuperou === true) ? 'SIM'
+    : (op.suporteRecuperou === false) ? 'NÃO' : '';
+
   // =========================================================================
-  // 9. RETORNAR ARRAY COM 27 COLUNAS (CORREÇÃO v13.2)
+  // 9. RETORNAR ARRAY COM 31 COLUNAS (v15.3: 28 → 31, diagnóstico da quebra)
   // =========================================================================
   return [
     dataAtual,           // 0: Data
@@ -462,7 +497,11 @@ const OutputManager = (function () {
     topo50,              // 23: Topo50 (máxima de 30 candles)
     ganhoRapidoPct,      // 24: GanhoRapido% (variação em 10 candles)
     distTopoPct,         // 25: DistTopo% (distância da máxima)
-    forcaRelativa        // 26: Força Rel. % (vs. BOVA11, 21d)
+    forcaRelativa,       // 26: Força Rel. % (vs. BOVA11, 21d)
+    suportePivo,         // 27: 🔧 v15.3 — Suporte (Pivô) / swingLow
+    suporteRompidoTxt,   // 28: 🔧 v15.3 — Suporte Rompido? (SIM/NÃO)
+    volRompimentoSuporte,// 29: 🔧 v15.3 — Vol. Rompimento (x mediana)
+    suporteRecuperouTxt  // 30: 🔧 v15.3 — Recuperou Suporte? (SIM/NÃO)
   ];
 }
 

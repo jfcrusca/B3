@@ -14,9 +14,13 @@
     "test:limpeza": "node scripts/test_limpeza_aba.js",
     "test:config": "node scripts/test_core22_config.js",
     "test:escritor": "node scripts/test_escritor_unico.js",
+    "test:suporte": "node scripts/test_coluna_suporte.js",
+    "validar:suporte": "node scripts/validar_cadeia_suporte_zona.js",
     "test:blacklist": "node scripts/test_blacklist_cotacao.js",
     "test:bdr": "node scripts/test_bdr_filter.js",
     "diag:tempo": "node scripts/diag_tempo.js",
+    "diag:fibo": "node scripts/diag_fibonacci.js --demo",
+    "diag:fibo:json": "node scripts/diag_fibonacci.js --demo --json",
     "test:all": "node scripts/_run-all.js",
     "push": "clasp push",
     "push:force": "clasp push --force"

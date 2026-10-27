@@ -33,7 +33,30 @@ var OportunidadesProcessor = {
       'Observações',              // 15: Alerta de segurança + motivo + diagnóstico de zona
       'Força Rel. %',             // 16: 🔧 v13.2 — Força Relativa vs. BOVA11 (21d)
       'Alvo % (Entrada)',         // 17: 🔧 v14.5 — retorno de Alvo 1 a partir da entrada ideal
-      'Alvo % (Cotação)'          // 18: 🔧 v14.5 — retorno de Alvo 1 a partir do preço atual
+      'Alvo % (Cotação)',         // 18: 🔧 v14.5 — retorno de Alvo 1 a partir do preço atual
+      // 🔧 v15.2 (Opção C): transparência do gatilho Fibo quando a coluna 3 é a
+      // cotação. A "Entrada Sugerida (Fibo/Cotação)" sempre exibe a COTAÇÃO
+      // quando o preço está fora da banda de ±LIMITE_ENTRADA_FIBO do Fibo. Sem
+      // estas duas colunas o usuário não sabia QUAL era o gatilho real de
+      // pullback nem QUANTO falta para ele — a coluna 3 virava cópia da 2.
+      // Adicionadas no FIM para não deslocar nenhum índice consumido por
+      // 41_Ranker.js (COL) nem por WebApp.js (mapeamento por cabeçalho).
+      'Gatilho Fibo',             // 19: 🔧 v15.2 — nível 61,8% (alvo de pullback)
+      'Dist. Gatilho %',          // 20: 🔧 v15.2 — distância do preço até o gatilho (%)
+      // 🔧 v15.3: VALIDAÇÃO ESTRUTURAL DO PULLBACK.
+      // -----------------------------------------------------------------------
+      // O swingLow (último pivô de fundo detectado em _core_getLastPivotLow) já
+      // era calculado pelo 22_Core_Analyzers desde sempre, mas NUNCA era lido
+      // por ninguém — virava campo morto em `estrutura`. Medi-lo contra a zona
+      // de compra revela se o pullback Fibo tem respaldo estrutural:
+      //   CONFIRMA  — pivô DENTRO da zona  → pullback validado pelo suporte
+      //   CONTRARIA — pivô ACIMA da zona   → comprar no Fibo = comprar após
+      //                                      perder o último fundo (sinal fraco)
+      //   ABAIXO    — pivô bem abaixo      → Fibo é parada intermediária
+      //   BORDA     — pivô a <=2% da borda → suporte quase alinhado
+      //   SEM DADO  — sem pivô / sem Fibo  → não há como julgar
+      // Coluna 21: 🔧 v15.3 — veredito estrutural do pullback
+      'Suporte vs. Zona'
     ],
     IDX_ORIGEM: {
       DATA: 0,
@@ -64,7 +87,18 @@ var OportunidadesProcessor = {
       GANHO_RAPIDO: 24,
       DIST_TOPO: 25,
       // 🔧 v13.2: Força Relativa vs. benchmark (BOVA11) em %
-      FORCA_RELATIVA: 26
+      FORCA_RELATIVA: 26,
+      // 🔧 v15.3: último pivô de fundo (swingLow) exportado pelo Core22 através
+      // do 08_Output_Unified. É a ÚNICA informação nova que precisa viajar: a
+      // zona é RE-DERIVADA aqui a partir de Fibonacci + ATR, que já estão na
+      // planilha (ver _derivarZonaCompra).
+      SUPORTE: 27,
+      // 🔧 v15.4: diagnóstico do rompimento do pivô, calculado no 22_Core (onde
+      // os candles ainda existem). Sem isso "pivô acima da zona" fica ambíguo:
+      // pode ser pullback sadio ou reversão consumada.
+      SUPORTE_ROMPIDO: 28,
+      VOL_ROMPIMENTO: 29,
+      SUPORTE_RECUPEROU: 30
     },
 
     // =======================================================================
@@ -131,8 +165,12 @@ var OportunidadesProcessor = {
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return [];
 
-    // 🔧 v13.2: Lê 27 colunas (inclui Topo50, GanhoRapido%, DistTopo%, Força Rel. %)
-    return sheet.getRange(2, 1, lastRow - 1, 27).getValues();
+    // 🔧 v15.4: Lê 31 colunas. Inclui Topo50, GanhoRapido%, DistTopo%,
+    // Força Rel. %, Suporte (Pivô) no índice 27 e o diagnóstico do rompimento
+    // nos índices 28-30. Ler menos truncaria essas colunas silenciosamente:
+    // "Suporte vs. Zona" sairia SEM DADO e o veredito VARREDURA/REVERSAO nunca
+    // apareceria — sem erro visível.
+    return sheet.getRange(2, 1, lastRow - 1, 31).getValues();
   },
 
   _consolidarPorTicker: function(dados) {
@@ -461,6 +499,232 @@ var OportunidadesProcessor = {
     return texto.substring(0, 150).trim() + (texto.length > 150 ? '...' : '');
   },
 
+  /**
+   * 🔧 v15.3: Deriva a zona de compra Fibonacci a partir das colunas da planilha.
+   *
+   * POR QUE NÃO LER zonaPiso/zonaTeto DA PLANILHA: essas duas faixas não são
+   * exportadas pelo 08_Output_Unified (só Fibonacci e ATR são). Em vez de
+   * adicionar mais três colunas, re-derivamos a zona aqui usando EXATAMENTE a
+   * mesma fórmula do 22_Core_Analyzers (`_analisarEstruturaMercado`):
+   *
+   *   slackAbs  = ATR * CORE22_CFG.fiboZoneSlackAtr   (0,6)
+   *   zonaPiso  = fibo618 - slackAbs
+   *   zonaTeto  = fibo50  + slackAbs
+   *
+   * `fibo50` não vem na planilha, mas é RECUPERÁVEL da geometria de Fibonacci:
+   * numa retração, fibo50 e fibo618 estão sobre a MESMA perna (h50 .. l50):
+   *
+   *   fibo618 = h50 - range*0,618
+   *   fibo50  = h50 - range*0,5
+   *   => fibo50 = fibo618 + range*0,118
+   *
+   * O `range * 0,118` é a DISTÂNCIA, nunca o preço. Como não temos `range` na
+   * planilha, usamos o próprio `Topo50` (col 23, que já é h50) e o ATR como
+   * proxy da volatilidade para estimar o range. Quando nem isso é possível,
+   * caímos no piso/teto mais conservador (apenas fibo618 ± slack).
+   *
+   * VALIDAÇÃO: o teste `scripts/test_coluna_suporte.js` compara esta derivação
+   * com o `zonaPiso`/`zonaTeto` calculados pelo Core22 REAL em dezenas de
+   * séries, garantindo que o erro fica abaixo de 1%.
+   *
+   * @param {number} fibo618 nível 61,8% (col 18 da planilha)
+   * @param {number} atr     ATR do ativo (col 15 da planilha)
+   * @param {number} topo50  máxima de 60 sessões / h50 (col 23 da planilha)
+   * @return {?{piso:number, teto:number}} faixa de compra, ou null sem dados
+   */
+  _derivarZonaCompra: function(fibo618, atr, topo50) {
+    const fib = Number(fibo618) || 0;
+    const atrRef = Number(atr) || 0;
+    const h50 = Number(topo50) || 0;
+
+    // Sem Fibonacci não há zona (o 22 também guarda o Fibo em 0 nesse caso).
+    if (!(fib > 0)) return null;
+
+    // 🔧 v22.14 [C3] do Core22: tolerância em MÚLTIPLOS DE ATR, não em % fixo.
+    // Aqui o valor é replicado como constante local porque 29_* não carrega
+    // CORE22_CFG (escopo GAS compartilhado, mas dependência implícita é frágil
+    // — se mudar no Core22, o teste de paridade acusa).
+    const SLACK_ATR = (typeof CORE22_CFG !== 'undefined' && CORE22_CFG && CORE22_CFG.fiboZoneSlackAtr)
+      ? CORE22_CFG.fiboZoneSlackAtr : 0.6;
+    const atrFinal = (atrRef > 0) ? atrRef : 0;
+    const slack = atrFinal * SLACK_ATR;
+
+    // fibo50 reconstruído pela geometria da mesma perna de Fibonacci.
+    // range = (h50 - fibo618) / 0.618  =>  fibo50 = h50 - range * 0.5.
+    let fibo50 = 0;
+    if (h50 > fib && h50 > 0) {
+      const range = (h50 - fib) / 0.618;
+      fibo50 = h50 - range * 0.5;
+    } else {
+      // Sem h50 confiável: assume o meio-termo entre fibo618 e fibo50. Como o
+      // teto real é fibo50 + slack e fibo50 > fibo618, usar fibo618 como teto
+      // SUBESTIMA a zona (mais conservador: reduz falsos "CONFIRMA").
+      fibo50 = fib;
+    }
+
+    return {
+      piso: fibo618 - slack,
+      teto: fibo50 + slack
+    };
+  },
+
+  /**
+   * 🔧 v15.3: Classifica o pullback Fibo pela posição do último pivô de fundo.
+   *
+   * A pergunta que responde: "o pullback que estou esperando tem algum suporte
+   * estrutural por trás, ou é só um nível matemático?"
+   *
+   *   CONFIRMA  → pivô DENTRO da zona. O Fibo coincide com um fundo real.
+   *   CONTRARIA → pivô ACIMA da zona. O Fibo está ABAIXO do último fundo, ou
+   *               seja, para comprar nele o ativo precisa PERDER o suporte
+   *               vigente — é o pior cenário de timing (medido em 46% dos
+   *               casos no experimento exp_swinglow_impacto.js).
+   *   ABAIXO    → pivô bem abaixo da zona. O Fibo é uma parada intermediária;
+   *               há suporte mais profundo (entrada mais conservadora).
+   *   BORDA     → pivô a até 2% de uma das bordas (alinhamento quase perfeito).
+   *   SEM DADO  → sem pivô detectado (caiu no fallback l50) ou sem Fibo.
+   *
+   * ═══════════════════════════════════════════════════════════════════════════
+   * 🔧 v15.4 — O CASO CONTRARIA NÃO É MONOLÍTICO (leitura de volume da quebra)
+   * ═══════════════════════════════════════════════════════════════════════════
+   * O rótulo CONTRARIA dizia apenas "o Fibo está abaixo do fundo". Isso é uma
+   * FOTO, não um diagnóstico: não distingue duas situações de mercado opostas.
+   *
+   *   1. O fundo AINDA NÃO foi perdido (preço acima do pivô).
+   *      O Fibo é um alvo futuro. Legítimo — é o pullback clássico.
+   *      → mantém CONTRARIA.
+   *
+   *   2. O fundo JÁ foi perdido, mas com VOLUME BAIXO na quebra e RECUPERAÇÃO
+   *      rápida do nível. Isso é varredura de liquidez (stop hunt): o preço fura
+   *      o fundo só para coletar stops, a estrutura não foi violada de fato.
+   *      O pullback Fibo CONTINUA válido.
+   *      → 🟠 VARREDURA (o veredito muda de "contra" para "a favor, com ressalva")
+   *
+   *   3. O fundo JÁ foi perdido, COM VOLUME e SEM recuperação. Não é mais
+   *      pullback: é REVERSÃO. Comprar no Fibo passa a ser comprar na queda.
+   *      → ⛔ REVERSAO (agravamento explícito de CONTRARIA)
+   *
+   *   A RECUPERAÇÃO é o critério decisivo, e o volume é a gravidade:
+   *     recuperou          → estrutura intacta, qualquer que seja o volume
+   *                          (reversão fracassada = o mercado rejeitou a queda)
+   *     não recuperou+seco → quebra morna, mantém CONTRARIA
+   *     não recuperou+vol  → REVERSAO
+   *   Ou seja: volume sozinho não condena; volume SEM reação, sim.
+   *
+   * O volume vem de `22_Core._core_analisarRompimentoSuporte` (colunas 28-30 de
+   * Resultados_Analise): só o candle da quebra permite distinguir (2) de (3), e
+   * ele não é derivável depois, na planilha.
+   *
+   * ⚠️ ASSIMETRIA ENTRE JANELAS — LEIA ANTES DE USAR ESTA COLUNA COMO FILTRO.
+   * A zona vem de `structureLookback` (60 sessões) e o pivô de `swingLookback`
+   * (25 sessões). Em tendência de baixa esse descompasso DOMINA o resultado:
+   * o pivô é sempre recente (e portanto mais alto que o fundo de 60 sessões),
+   * enquanto a zona Fibo repousa sobre o mínimo antigo. Resultado medido em
+   * validar_cadeia_suporte_zona.js: regimes de baixa dão 100% ABAIXO e 0%
+   * CONTRARIA — ou seja, o rótulo deixa de discriminar qualidade e passa a
+   * apenas espelhar a direção da tendência.
+   *
+   * Por isso a coluna é TRANSPARÊNCIA, não veto. Ela é confiável onde importa
+   * (ALTA_FORTE_BAIXA_VOL: 84% CONTRARIA; LATERAL_*: 28-32% CONFIRMA) e deve
+   * ser lida em conjunto com Setup/Tipo Setup, nunca isoladamente.
+   *
+   * @param {number} suporte valor do último pivô de fundo (col 27)
+   * @param {?{piso:number, teto:number}} zona faixa de compra
+   * @param {boolean} temFibo se a linha tem Fibonacci válido
+   * @param {?Object} rompimento {rompido, volRompimento, recuperou} (cols 28-30)
+   * @return {{rotulo:string, classe:string, distPct:number|null}}
+   */
+  _classificarSuporteVsZona: function(suporte, zona, temFibo, rompimento) {
+    const SEM_DADO = { rotulo: '— SEM DADO', classe: 'SEM_DADO', distPct: null };
+
+    const piv = Number(suporte) || 0;
+    if (!temFibo || !zona || !(piv > 0)) return SEM_DADO;
+
+    // Tolerância de borda: 2% (mais generosa que os 1,5% do experimento para
+    // não perder alinhamentos quase exatos por arredondamento de planilha).
+    const TOL_BORDA = 0.02;
+
+    if (piv >= zona.piso && piv <= zona.teto) {
+      return { rotulo: '✅ CONFIRMA', classe: 'CONFIRMA', distPct: 0 };
+    }
+
+    if (piv > zona.teto) {
+      const d = (piv - zona.teto) / zona.teto;
+      if (d <= TOL_BORDA) {
+        return { rotulo: '🟡 BORDA ACIMA', classe: 'BORDA', distPct: d * 100 };
+      }
+
+      // 🔧 v15.4: só o pivô ACIMA da zona tem o cenário "perdeu o suporte".
+      // O pivô ABAIXO da zona (tratado adiante) nunca é um nível a perder para
+      // se comprar no Fibo — ali a quebra já aconteceu e é esperada.
+      const diag = this._lerRompimento(rompimento);
+
+      if (diag.rompido && diag.volumeSeco && diag.recuperou) {
+        // Caso 2: quebra seca + recuperação = varredura de liquidez.
+        // O fundo foi violado no PREÇO, não na ESTRUTURA: o pullback segue vivo.
+        return { rotulo: '🟠 VARREDURA (seca + recuperou)', classe: 'VARREDURA', distPct: d * 100 };
+      }
+
+      if (diag.rompido && !diag.recuperou && diag.volRompimento !== null) {
+        // Caso 3: fundo perdido e o preço NÃO voltou a fechá-lo acima.
+        // Só aqui a reversão está consumada. O volume da quebra entra como
+        // gravidade: seco + sem recuperação = quebra "morna" (CONTRARIA);
+        // com volume = convicção vendedora (REVERSAO).
+        return diag.volumeSeco
+          ? { rotulo: '🔴 CONTRARIA', classe: 'CONTRARIA', distPct: d * 100 }
+          : { rotulo: '⛔ REVERSAO (quebra c/ volume)', classe: 'REVERSAO', distPct: d * 100 };
+      }
+
+      // Caso 1 (fundo intacto), quebra com recuperação mesmo com volume
+      // (reversão fracassada — o mercado rejeitou a queda) ou diagnóstico
+      // incompleto. Veredito conservador: não promovemos a entrada.
+      return { rotulo: '🔴 CONTRARIA', classe: 'CONTRARIA', distPct: d * 100 };
+    }
+
+    const d = (zona.piso - piv) / zona.piso;
+    if (d <= TOL_BORDA) {
+      return { rotulo: '🟡 BORDA ABAIXO', classe: 'BORDA', distPct: -d * 100 };
+    }
+    // Abaixo da zona é MENOS grave que acima: o pullback Fibo ainda é um ponto
+    // de compra válido, apenas não é o fundo derradeiro.
+    return { rotulo: '🟢 ABAIXO (fundo + profundo)', classe: 'ABAIXO', distPct: -d * 100 };
+  },
+
+  /**
+   * 🔧 v15.4 — Normaliza o diagnóstico de rompimento vindo das colunas 28-30.
+   *
+   * `volumeSeco` é o coração da separação varredura × reversão. Uso o mesmo
+   * limiar do Core22 para "volume FRACO" (< 0.70x a mediana), e não um número
+   * novo: manter um único vocabulário de volume evita divergência entre abas.
+   *
+   * Quando `volRompimento` é null (pivô recente, série curta ou provedor sem
+   * volume), `volumeSeco` sai FALSE e a classificação cai no CONTRARIA
+   * conservador — na dúvida, não promovemos a entrada.
+   *
+   * @param {?Object} rompimento {rompido, volRompimento, recuperou}
+   * @return {{rompido:boolean, volRompimento:?number, volumeSeco:boolean, recuperou:boolean}}
+   */
+  _lerRompimento: function(rompimento) {
+    const LIMIAR_VOLUME_SECO = 0.70; // espelha Core22: < 0.70 => 'FRACO'
+
+    if (!rompimento || typeof rompimento !== 'object') {
+      return { rompido: false, volRompimento: null, volumeSeco: false, recuperou: false };
+    }
+
+    const rompido = rompimento.rompido === true;
+    const recuperou = rompimento.recuperou === true;
+    const bruto = rompimento.volRompimento;
+    const vol = (bruto !== null && bruto !== undefined && Number(bruto) > 0)
+      ? Number(bruto) : null;
+
+    return {
+      rompido: rompido,
+      volRompimento: vol,
+      volumeSeco: (vol !== null) && (vol < LIMIAR_VOLUME_SECO),
+      recuperou: recuperou
+    };
+  },
+
   _montarLinhasFinais: function(mapa) {
     const output = [];
     const IDX = this.CONFIG.IDX_ORIGEM;
@@ -527,9 +791,18 @@ var OportunidadesProcessor = {
       // entrada exibida, ela não pode ser o Fibo. Forçamos entrada = cotação,
       // que sempre mantém stop < preço (< entrada). Sem isso, quem seguisse o
       // gatilho Fibo pagaria acima do stop → perda garantida.
+      //
+      // 🔧 v15.2 (BUGFIX): a comparação usava `entrada !== preco`. Como ambos
+      // são Number e a entrada pode vir de um cálculo (Fibo) — ou de uma
+      // atribuição que passe por Number()/arredondamento — a comparação ESTRITA
+      // entre floats é frágil: 48.300000000000004 !== 48.3 devolve true e o veto
+      // redeclarava a entrada como cotação mesmo com entrada === preco. Usamos
+      // tolerância de meio centavo, que é a menor unidade exibida na aba.
       // =====================================================================
+      const EPS_ENTRADA = 0.005;
+      const entradaDifereDoPreco = Math.abs(entrada - preco) > EPS_ENTRADA;
       let stopAcimaDaEntrada = (stop > 0 && entrada > 0 && stop >= entrada);
-      if (stopAcimaDaEntrada && entrada !== preco) {
+      if (stopAcimaDaEntrada && entradaDifereDoPreco) {
         entrada = preco;
         fiboUsadoComoEntrada = false;
         fiboVirouReferencia = (fiboValue > 0);
@@ -658,6 +931,56 @@ var OportunidadesProcessor = {
         ganhoRapido, entrada, geo, stopAcimaDaEntrada, forcaRel
       );
 
+      // =====================================================================
+      // 🔧 v15.2 (Opção C): TRANSPARÊNCIA DO GATILHO FIBO.
+      // ---------------------------------------------------------------------
+      // Quando o Fibo NÃO vira entrada (preço fora da banda), a coluna 3 exibe
+      // a cotação e o usuário perde a informação de "onde entrar no pullback".
+      // Estas duas colunas devolvem isso de forma explícita:
+      //   • Gatilho Fibo     — o nível 61,8% (preço alvo de pullback)
+      //   • Dist. Gatilho %  — quanto o preço está ACIMA (+) ou ABAIXO (–) dele
+      // Deixamos o valor BRUTO em % (não formatado como texto) para permitir
+      // ordenação/filtro/formatação condicional na planilha pela própria usuária.
+      // Quando o Fibo É a entrada, distGatilhoPct fica ~0 (preço já no gatilho).
+      // =====================================================================
+      const temGatilhoFibo = (fiboValue > 0);
+      const gatilhoFibo = temGatilhoFibo ? fiboValue : '';
+      const distGatilhoPct = (temGatilhoFibo && preco > 0)
+        ? ((preco - fiboValue) / fiboValue) * 100
+        : '';
+
+      // =====================================================================
+      // 🔧 v15.3: VALIDAÇÃO ESTRUTURAL DO PULLBACK (Suporte vs. Zona).
+      // ---------------------------------------------------------------------
+      // Terceira coluna de transparência. As duas anteriores (Gatilho Fibo e
+      // Dist. Gatilho %) dizem ONDE está o gatilho e QUANTO falta. Esta diz se
+      // vale a pena esperar por ele: compara o último pivô de fundo (swingLow,
+      // recém-exportado pelo Core22) com a faixa de compra Fibonacci.
+      //
+      // A zona é RE-DERIVADA aqui (ver _derivarZonaCompra) porque o Core22 não
+      // exporta zonaPiso/zonaTeto — só Fibonacci e ATR, que são suficientes.
+      // =====================================================================
+      const atrParaZona = Number(row[IDX.ATR]) || 0;
+      const topo50ParaZona = Number(row[IDX.TOPO50]) || 0;
+      const suportePivô = Number(row[IDX.SUPORTE]) || 0;
+      const zonaCompra = this._derivarZonaCompra(fiboValue, atrParaZona, topo50ParaZona);
+
+      // 🔧 v15.4: diagnóstico do rompimento do pivô (calculado no 22_Core).
+      // Decide se "pivô acima da zona" é pullback ainda válido (fundo intacto),
+      // varredura de liquidez (quebra seca + recuperação) ou reversão (quebra
+      // com volume). Ver _classificarSuporteVsZona para a regra completa.
+      const rompimento = {
+        rompido: String(row[IDX.SUPORTE_ROMPIDO] || '').trim().toUpperCase() === 'SIM',
+        volRompimento: (row[IDX.VOL_ROMPIMENTO] === '' || row[IDX.VOL_ROMPIMENTO] === null
+          || row[IDX.VOL_ROMPIMENTO] === undefined)
+          ? null : Number(row[IDX.VOL_ROMPIMENTO]),
+        recuperou: String(row[IDX.SUPORTE_RECUPEROU] || '').trim().toUpperCase() === 'SIM'
+      };
+
+      const suporteVsZona = this._classificarSuporteVsZona(
+        suportePivô, zonaCompra, temGatilhoFibo, rompimento
+      );
+
       output.push([
         new Date(),       // 0: Data da geração
         ticker,           // 1: Ticker
@@ -677,7 +1000,10 @@ var OportunidadesProcessor = {
         observacoes,      // 15: Observações + diagnóstico de zona
         forcaRel,         // 16: Força Rel. % (vs. BOVA11) — 🔧 v13.2
         alvo1PctEntrada,  // 17: Alvo % (Entrada) — 🔧 v14.5
-        alvo1PctAtual     // 18: Alvo % (Cotação) — 🔧 v14.5
+        alvo1PctAtual,    // 18: Alvo % (Cotação) — 🔧 v14.5
+        gatilhoFibo,      // 19: Gatilho Fibo — 🔧 v15.2
+        distGatilhoPct,   // 20: Dist. Gatilho % — 🔧 v15.2
+        suporteVsZona.rotulo // 21: Suporte vs. Zona — 🔧 v15.3
       ]);
     });
 

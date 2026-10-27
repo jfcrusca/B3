@@ -171,13 +171,19 @@ var Bootstrap = (function () {
   // ... (Mantém as outras funções padrão: Tickers, Resultados, etc.) ...
   function setupResultadosAnalise(ss, opts) {
     const sh = ensureSheet(ss, 'Resultados_Analise');
-    // 🔧 v13.2: HEADER única alinhada com 08_Output_Unified (27 colunas).
+    // 🔧 v13.2: HEADER única alinhada com 08_Output_Unified (28 colunas).
     const headers = [
       "Data", "Ticker", "Preço", "Score", "Setup", "Motivo", "Stop Loss",
       "Alvo 1", "Alvo 2", "R/R", "Risco %", "RSI", "EMA21", "EMA50",
       "EMA200", "ATR", "Volume", "Pivot", "Fibonacci", "Análise IA",
       "Ranking", "Tipo Setup", "Alerta Segurança",
-      "Topo50", "GanhoRapido%", "DistTopo%", "Força Rel. %"
+      "Topo50", "GanhoRapido%", "DistTopo%", "Força Rel. %",
+      // 🔧 v15.3: último pivô de fundo (swingLow) — suporte estrutural.
+      // Não confundir com "Pivot" (18), que é o pivot point clássico (H+L+C)/3.
+      "Suporte (Pivô)",
+      // 🔧 v15.3: diagnóstico do rompimento do suporte (calculado no 22_Core).
+      // Separa varredura de liquidez (quebra seca + recuperação) de reversão.
+      "Suporte Rompido?", "Vol. Rompimento (x)", "Recuperou Suporte?"
     ];
     setHeaders(sh, headers, opts);
     return sh;
@@ -189,8 +195,21 @@ var Bootstrap = (function () {
       'Data', 'Ticker', 'Preço Atual', 'Entrada Sugerida (Fibo/Cotação)', 'Stop Loss',
       'Alvo 1', 'Alvo 2', 'R/R', 'Risco %', 'Recomendação',
       'Score', 'Setup', 'Tipo Setup', 'Análise Técnica', 'Análise IA', 'Observações',
+      // 🔧 v13.2: Força Relativa vs. benchmark (BOVA11) em % (21d)
+      // ⚠️ v15.2: estava FALTANDO aqui — o Processor já gravava 19 colunas desde
+      // a v13.2, mas a criação da aba declarava 18. Toda aba criada pelo Setup
+      // ficava com 'Alvo % (Entrada)' na posição 16 (lida como Força Relativa
+      // pelo Ranker) e 'Alvo % (Cotação)' na 17. Agora alinhado com
+      // OportunidadesProcessor.CONFIG.HEADERS_DESTINO.
+      'Força Rel. %',
       // 🔧 v14.5: retorno REAL do Alvo 1 nas duas bases de preço (entrada vs cotação)
-      'Alvo % (Entrada)', 'Alvo % (Cotação)'
+      'Alvo % (Entrada)', 'Alvo % (Cotação)',
+      // 🔧 v15.2: transparência do gatilho Fibo (ver 29_Oportunidades_Processor)
+      'Gatilho Fibo', 'Dist. Gatilho %',
+      // 🔧 v15.3: veredito estrutural do pullback (swingLow vs. zona de compra).
+      // CONFIRMA = pivô dentro da zona; CONTRARIA = pivô acima (o Fibo exigiria
+      // perder o suporte); ABAIXO = fundo mais profundo; SEM DADO = sem pivô.
+      'Suporte vs. Zona'
     ];
     setHeaders(sh, headers, opts);
     return sh;
